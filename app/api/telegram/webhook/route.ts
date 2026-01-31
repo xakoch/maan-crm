@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
             if (existingUser) {
                 await sendMessage(chatId,
-                    `✅ Вы уже привязаны как *${existingUser.full_name}*!\\n\\nВы будете получать уведомления о новых лидах.`,
+                    `✅ Вы уже привязаны как *${existingUser.full_name}*!\n\nВы будете получать уведомления о новых лидах.`,
                     { parse_mode: "Markdown" }
                 );
                 return NextResponse.json({ ok: true });
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
             pendingVerifications.set(chatId, { step: 'awaiting_id' });
 
             await sendMessage(chatId,
-                `👋 Добро пожаловать в *MAAN CRM Bot*!\\n\\nОтправьте ваш *Link ID* (последние 6 символов), чтобы привязать аккаунт.`,
+                `👋 Добро пожаловать в *MAAN CRM Bot*!\n\nОтправьте ваш *Link ID* (последние 6 символов), чтобы привязать аккаунт.`,
                 { parse_mode: "Markdown" }
             );
 
@@ -59,15 +59,15 @@ export async function POST(req: NextRequest) {
             if (user) {
                 const tenantName = (user.tenants as any)?.name || 'Не назначен';
                 await sendMessage(chatId,
-                    `📊 *Ваш статус*\\n\\n` +
-                    `👤 *Имя:* ${user.full_name}\\n` +
-                    `🏢 *Дилер:* ${tenantName}\\n\\n` +
+                    `📊 *Ваш статус*\n\n` +
+                    `👤 *Имя:* ${user.full_name}\n` +
+                    `🏢 *Дилер:* ${tenantName}\n\n` +
                     `✅ Привязка активна`,
                     { parse_mode: "Markdown" }
                 );
             } else {
                 await sendMessage(chatId,
-                    `❌ Вы не привязаны к CRM.\\n\\nОтправьте /start для начала привязки.`,
+                    `❌ Вы не привязаны к CRM.\n\nОтправьте /start для начала привязки.`,
                     { parse_mode: "Markdown" }
                 );
             }
@@ -114,10 +114,10 @@ export async function POST(req: NextRequest) {
                     `👤 ${u.full_name}: \`${u.id.slice(-6)}\``
                 ).join('\n');
 
-                const debugMsg = `🔍 **Отладка**\n` +
+                const debugMsg = `🔍 *Отладка*\n` +
                     `Я получил: \`${cleanText}\`\n` +
                     `Пользователей в базе: ${allUsers?.length || 0}\n\n` +
-                    `**Попробуйте скопировать один из кодов ниже:**\n${userList || 'Нет пользователей 🤔'}`;
+                    `*Попробуйте скопировать один из кодов ниже:*\n${userList || 'Нет пользователей 🤔'}`;
 
                 await sendMessage(chatId, debugMsg, { parse_mode: "Markdown" });
 
@@ -146,8 +146,8 @@ export async function POST(req: NextRequest) {
             pendingVerifications.delete(chatId);
 
             await sendMessage(chatId,
-                `✅ *Привязка успешна!*\\n\\n` +
-                `👤 Имя: *${manager.full_name}*\\n` +
+                `✅ *Привязка успешна!*\n\n` +
+                `👤 Имя: *${manager.full_name}*\n` +
                 `Теперь вы будете получать уведомления о новых лидах! 🔔`,
                 { parse_mode: "Markdown" }
             );
