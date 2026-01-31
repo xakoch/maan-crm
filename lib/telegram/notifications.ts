@@ -56,13 +56,6 @@ export async function sendLeadNotification(
     };
 
     try {
-        console.log("Sending notification to manager:", {
-            managerId: manager.id,
-            managerName: manager.full_name,
-            telegramId: manager.telegram_id,
-            telegramIdType: typeof manager.telegram_id
-        });
-
         await sendMessage(manager.telegram_id, message, {
             parse_mode: "Markdown",
             reply_markup: keyboard
