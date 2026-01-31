@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { Database } from "@/types/database.types";
 import { sendLeadNotification } from "@/lib/telegram/notifications";
 
 export async function POST(req: NextRequest) {
@@ -10,16 +11,21 @@ export async function POST(req: NextRequest) {
             return NextResponse.json({ error: "Lead ID required" }, { status: 400 });
         }
 
-        const supabase = await createClient();
+        // Use service role client for API routes
+        const supabase = createClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
 
         // 1. Get lead details
-        const { data: lead } = await supabase
+        const { data: lead, error: leadError } = await supabase
             .from('leads')
             .select('*')
             .eq('id', leadId)
             .single();
 
-        if (!lead) {
+        if (leadError || !lead) {
+            console.error("Lead not found:", leadError);
             return NextResponse.json({ error: "Lead not found" }, { status: 404 });
         }
 
@@ -62,11 +68,12 @@ export async function POST(req: NextRequest) {
         }
 
         if (!managerToSend) {
+            console.log("No suitable manager found for lead:", leadId, "tenant:", lead.tenant_id);
             return NextResponse.json({ message: "No suitable manager found to notify" });
         }
 
         // 4. Send notification
-        const sent = await sendLeadNotification(lead, managerToSend);
+        const sent = await sendLeadNotification(lead, managerToSend, supabase);
 
         if (sent) {
             return NextResponse.json({ success: true, assignedTo: managerToSend.full_name });

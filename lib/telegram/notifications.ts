@@ -1,6 +1,7 @@
 // Telegram notification functions for leads
 import { sendMessage } from "./bot";
-import { createClient } from "@/lib/supabase/server";
+import { SupabaseClient } from "@supabase/supabase-js";
+import { Database } from "@/types/database.types";
 
 interface Lead {
     id: string;
@@ -18,7 +19,11 @@ interface Manager {
 }
 
 // Send notification about new lead to manager
-export async function sendLeadNotification(lead: Lead, manager: Manager) {
+export async function sendLeadNotification(
+    lead: Lead,
+    manager: Manager,
+    supabase: SupabaseClient<Database>
+) {
     if (!manager.telegram_id) {
         console.log(`Manager ${manager.id} has no telegram_id, skipping notification`);
         return false;
@@ -60,7 +65,6 @@ export async function sendLeadNotification(lead: Lead, manager: Manager) {
         });
 
         // Update lead to mark as sent to telegram
-        const supabase = await createClient();
         await supabase
             .from('leads')
             .update({ sent_to_telegram: true })
