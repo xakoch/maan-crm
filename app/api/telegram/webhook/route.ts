@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
 
             if (existingUser) {
                 await sendMessage(chatId,
-                    `✅ Вы уже привязаны как *${existingUser.full_name}*!\n\nВы будете получать уведомления о новых лидах.`,
+                    `✅ Вы уже привязаны как *${existingUser.full_name}*!\\n\\nВы будете получать уведомления о новых лидах.`,
                     { parse_mode: "Markdown" }
                 );
                 return NextResponse.json({ ok: true });
@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
             pendingVerifications.set(chatId, { step: 'awaiting_id' });
 
             await sendMessage(chatId,
-                `👋 Добро пожаловать в *MAAN CRM Bot*!\n\nДля привязки введите ваш *Link ID* из системы (6 символов из таблицы менеджеров):`,
+                `👋 Добро пожаловать в *MAAN CRM Bot*!\\n\\nДля привязки введите ваш *Link ID* из системы (6 символов из таблицы менеджеров):`,
                 { parse_mode: "Markdown" }
             );
 
@@ -59,15 +59,15 @@ export async function POST(req: NextRequest) {
             if (user) {
                 const tenantName = (user.tenants as any)?.name || 'Не назначен';
                 await sendMessage(chatId,
-                    `📊 *Ваш статус*\n\n` +
-                    `👤 *Имя:* ${user.full_name}\n` +
-                    `🏢 *Дилер:* ${tenantName}\n\n` +
+                    `📊 *Ваш статус*\\n\\n` +
+                    `👤 *Имя:* ${user.full_name}\\n` +
+                    `🏢 *Дилер:* ${tenantName}\\n\\n` +
                     `✅ Привязка активна`,
                     { parse_mode: "Markdown" }
                 );
             } else {
                 await sendMessage(chatId,
-                    `❌ Вы не привязаны к CRM.\n\nОтправьте /start для начала привязки.`,
+                    `❌ Вы не привязаны к CRM.\\n\\nОтправьте /start для начала привязки.`,
                     { parse_mode: "Markdown" }
                 );
             }
@@ -78,7 +78,7 @@ export async function POST(req: NextRequest) {
         // Handle text message (Link ID)
         if (update.message?.text && !update.message.text.startsWith('/')) {
             const chatId = update.message.chat.id;
-            const text = update.message.text.trim().toUpperCase();
+            const text = update.message.text.trim();
             const username = update.message.from?.username;
 
             const pending = pendingVerifications.get(chatId);
@@ -87,25 +87,24 @@ export async function POST(req: NextRequest) {
             }
 
             // Search user by last 6 chars of ID
-            // Using ilike because it's easier to find substring
-            const { data: users, error } = await supabase
+            // Fetch all users and filter client-side (more reliable for UUID matching)
+            const { data: allUsers, error } = await supabase
                 .from('users')
-                .select('id, full_name, email')
-                .ilike('id', `%${text}`);
+                .select('id, full_name, email');
 
-            if (error || !users || users.length === 0) {
-                await sendMessage(chatId,
-                    `❌ Пользователь с ID *${text}* не найден.\n\nПожалуйста, проверьте 6 символов в колонке Link ID и попробуйте снова.`,
-                    { parse_mode: "Markdown" }
-                );
+            if (error) {
+                await sendMessage(chatId, `❌ Ошибка при поиске пользователя.`);
                 return NextResponse.json({ ok: true });
             }
 
-            // In case of multiple matches (unlikely for 6 random chars but possible)
-            const manager = users.length === 1 ? users[0] : users.find(u => u.id.endsWith(text.toLowerCase()));
+            // Find user whose ID ends with the search text (case-insensitive)
+            const manager = allUsers?.find(u => u.id.toLowerCase().endsWith(text.toLowerCase()));
 
             if (!manager) {
-                await sendMessage(chatId, `❌ Не удалось точно определить пользователя. Свяжитесь с админом.`);
+                await sendMessage(chatId,
+                    `❌ Пользователь с ID *${text}* не найден.\\n\\nПожалуйста, проверьте 6 символов в колонке Link ID и попробуйте снова.`,
+                    { parse_mode: "Markdown" }
+                );
                 return NextResponse.json({ ok: true });
             }
 
@@ -126,8 +125,8 @@ export async function POST(req: NextRequest) {
             pendingVerifications.delete(chatId);
 
             await sendMessage(chatId,
-                `✅ *Привязка успешна!*\n\n` +
-                `👤 Имя: *${manager.full_name}*\n\n` +
+                `✅ *Привязка успешна!*\\n\\n` +
+                `👤 Имя: *${manager.full_name}*\\n\\n` +
                 `Теперь вы будете получать уведомления о новых лидах! 🔔`,
                 { parse_mode: "Markdown" }
             );
