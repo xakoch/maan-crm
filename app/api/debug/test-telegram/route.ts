@@ -14,15 +14,20 @@ export async function GET(req: NextRequest) {
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         );
 
-        // Get user with telegram_id
-        const { data: user, error } = await supabase
+        // Get all users
+        const { data: users, error } = await supabase
             .from('users')
-            .select('id, full_name, telegram_id, telegram_username')
-            .ilike('id', `%${userId}`)
-            .single();
+            .select('id, full_name, telegram_id, telegram_username');
 
-        if (error || !user) {
-            return NextResponse.json({ error: "User not found", details: error?.message });
+        if (error) {
+            return NextResponse.json({ error: "DB error", details: error?.message });
+        }
+
+        // Find user by ID suffix
+        const user = users?.find(u => u.id.toLowerCase().endsWith(userId.toLowerCase()));
+
+        if (!user) {
+            return NextResponse.json({ error: "User not found", searchedFor: userId });
         }
 
         if (!user.telegram_id) {
