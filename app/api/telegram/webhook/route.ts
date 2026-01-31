@@ -39,7 +39,7 @@ export async function POST(req: NextRequest) {
             pendingVerifications.set(chatId, { step: 'awaiting_id' });
 
             await sendMessage(chatId,
-                `👋 Добро пожаловать в *MAAN CRM Bot*!\\n\\nДля привязки введите ваш *Link ID* из системы (6 символов из таблицы менеджеров):`,
+                `👋 Добро пожаловать в *MAAN CRM Bot*!\\n\\nОтправьте ваш *Link ID* (последние 6 символов), чтобы привязать аккаунт.`,
                 { parse_mode: "Markdown" }
             );
 
@@ -86,42 +86,48 @@ export async function POST(req: NextRequest) {
                 return NextResponse.json({ ok: true });
             }
 
-            // Search user by last 6 chars of ID
-            // Fetch all users and filter client-side (more reliable for UUID matching)
+            // --- USER SEARCH LOGIC START ---
+
+            // 1. Fetch ALL users
             const { data: allUsers, error } = await supabase
                 .from('users')
-                .select('id, full_name, email');
+                .select('id, full_name, email, role');
 
             if (error) {
-                console.error("Error fetching users:", error);
-                await sendMessage(chatId, `❌ Ошибка при поиске пользователя.`);
+                await sendMessage(chatId, `❌ Ошибка доступа к БД: ${error.message}`);
                 return NextResponse.json({ ok: true });
             }
 
-            console.log("Search text:", text);
-            console.log("Total users:", allUsers?.length);
-            console.log("Sample IDs:", allUsers?.slice(0, 3).map(u => ({
-                id: u.id,
-                last6: u.id.slice(-6),
-                matches: u.id.toLowerCase().endsWith(text.toLowerCase())
-            })));
+            const cleanText = text.toLowerCase();
 
-            // Find user whose ID ends with the search text (case-insensitive)
-            const manager = allUsers?.find(u => u.id.toLowerCase().endsWith(text.toLowerCase()));
+            // 2. Try strict suffix match
+            let manager = allUsers?.find(u => u.id.toLowerCase().endsWith(cleanText));
 
-            console.log("Found manager:", manager?.full_name || "NOT FOUND");
+            // 3. If not found, try relaxed substring match (if text is long enough)
+            if (!manager && cleanText.length >= 4) {
+                manager = allUsers?.find(u => u.id.toLowerCase().includes(cleanText));
+            }
 
             if (!manager) {
-                // Send debug info
-                const debugInfo = `🔍 Debug:\nВсего пользователей: ${allUsers?.length}\nИщем: ${text}\nПримеры ID:\n${allUsers?.slice(0, 3).map(u => `- ${u.full_name}: ...${u.id.slice(-6)}`).join('\n')}`;
-                await sendMessage(chatId, debugInfo);
+                // Generate a helpful list of valid codes
+                const userList = allUsers?.map(u =>
+                    `👤 ${u.full_name}: \`${u.id.slice(-6)}\``
+                ).join('\n');
+
+                const debugMsg = `🔍 **Отладка**\n` +
+                    `Я получил: \`${cleanText}\`\n` +
+                    `Пользователей в базе: ${allUsers?.length || 0}\n\n` +
+                    `**Попробуйте скопировать один из кодов ниже:**\n${userList || 'Нет пользователей 🤔'}`;
+
+                await sendMessage(chatId, debugMsg, { parse_mode: "Markdown" });
 
                 await sendMessage(chatId,
-                    `❌ Пользователь с ID *${text}* не найден.\\n\\nПожалуйста, проверьте 6 символов в колонке Link ID и попробуйте снова.`,
+                    `❌ Совпадений не найдено.\nЕсли вы видите себя в списке выше, отправьте соответствующий код.`,
                     { parse_mode: "Markdown" }
                 );
                 return NextResponse.json({ ok: true });
             }
+            // --- USER SEARCH LOGIC END ---
 
             // Link the account
             const { error: updateError } = await supabase
@@ -133,7 +139,7 @@ export async function POST(req: NextRequest) {
                 .eq('id', manager.id);
 
             if (updateError) {
-                await sendMessage(chatId, `❌ Ошибка при сохранении данных.`);
+                await sendMessage(chatId, `❌ Ошибка при сохранении привязки в БД.`);
                 return NextResponse.json({ ok: true });
             }
 
@@ -141,7 +147,7 @@ export async function POST(req: NextRequest) {
 
             await sendMessage(chatId,
                 `✅ *Привязка успешна!*\\n\\n` +
-                `👤 Имя: *${manager.full_name}*\\n\\n` +
+                `👤 Имя: *${manager.full_name}*\\n` +
                 `Теперь вы будете получать уведомления о новых лидах! 🔔`,
                 { parse_mode: "Markdown" }
             );
