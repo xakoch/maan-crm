@@ -75,12 +75,15 @@ export async function POST(req: NextRequest) {
         // 4. Send notification
         const sent = await sendLeadNotification(lead, managerToSend, supabase);
 
-        if (sent) {
+        if (sent === true) {
             return NextResponse.json({ success: true, assignedTo: managerToSend.full_name });
         } else {
             console.warn("Failed to send telegram message for lead:", leadId);
-            // Return 200 to avoid client-side errors, since the lead itself is valid/created
-            return NextResponse.json({ success: true, warning: "Telegram message not sent" });
+            return NextResponse.json({
+                success: true,
+                warning: "Telegram message not sent",
+                error_details: sent // sent contains error object if failed
+            });
         }
 
     } catch (error) {

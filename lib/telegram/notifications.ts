@@ -23,7 +23,7 @@ export async function sendLeadNotification(
     lead: Lead,
     manager: Manager,
     supabase: SupabaseClient<Database>
-) {
+): Promise<boolean | any> {
     if (!manager.telegram_id) {
         console.log(`Manager ${manager.id} has no telegram_id, skipping notification`);
         return false;
@@ -78,9 +78,9 @@ export async function sendLeadNotification(
             .eq('id', lead.id);
 
         return true;
-    } catch (error) {
+    } catch (error: any) {
         console.error("Error sending lead notification:", error);
-        return false;
+        return { message: error?.message, stack: error?.stack };
     }
 }
 
