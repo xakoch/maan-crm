@@ -93,12 +93,23 @@ export async function POST(req: NextRequest) {
                 .select('id, full_name, email');
 
             if (error) {
+                console.error("Error fetching users:", error);
                 await sendMessage(chatId, `❌ Ошибка при поиске пользователя.`);
                 return NextResponse.json({ ok: true });
             }
 
+            console.log("Search text:", text);
+            console.log("Total users:", allUsers?.length);
+            console.log("Sample IDs:", allUsers?.slice(0, 3).map(u => ({
+                id: u.id,
+                last6: u.id.slice(-6),
+                matches: u.id.toLowerCase().endsWith(text.toLowerCase())
+            })));
+
             // Find user whose ID ends with the search text (case-insensitive)
             const manager = allUsers?.find(u => u.id.toLowerCase().endsWith(text.toLowerCase()));
+
+            console.log("Found manager:", manager?.full_name || "NOT FOUND");
 
             if (!manager) {
                 await sendMessage(chatId,
