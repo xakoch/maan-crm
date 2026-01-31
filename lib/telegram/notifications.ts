@@ -85,7 +85,9 @@ export async function sendLeadNotification(
 }
 
 // Helper function to escape markdown special characters
+// Only escape characters that break Markdown parsing
 function escapeMarkdown(text: string): string {
     if (!text) return "";
-    return text.replace(/[_*[\]()~`>#+=|{}.!-]/g, '\\$&');
+    // Only escape: _ * [ ] ( ) ~ ` > #
+    return text.replace(/[_*[\]()~`>#]/g, '\\$&');
 }
