@@ -3,14 +3,15 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Trash2 } from "lucide-react"
+import { Loader2, Trash2, User, Phone, MapPin, Building2, Globe, Activity, MessageSquare, Banknote, XCircle, UserCheck } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 
 import { Button } from "@/components/ui/button"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
     Form,
     FormControl,
@@ -44,7 +45,8 @@ import {
 const leadEditSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),
     phone: z.string().min(9, "Телефон обязателен"),
-    city: z.string().min(2, "Город обязателен"),
+    city: z.string().min(1, "Город обязателен"),
+    region: z.string().optional(),
     tenant_id: z.string().min(1, "Выберите дилера"),
     assigned_manager_id: z.string().optional(),
     source: z.string().min(1, "Источник обязателен"),
@@ -62,11 +64,18 @@ interface LeadEditFormProps {
     onSuccess?: () => void
 }
 
+interface DealerInfo {
+    id: string;
+    name: string;
+    city: string;
+    region: string | null;
+}
+
 export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
-    const [dealers, setDealers] = useState<{ id: string, name: string }[]>([])
+    const [allDealers, setAllDealers] = useState<DealerInfo[]>([])
     const [managers, setManagers] = useState<{ id: string, full_name: string, telegram_id?: number | null }[]>([])
 
     // Fetch dealers for select
@@ -75,10 +84,11 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             const supabase = createClient()
             const { data } = await supabase
                 .from('tenants')
-                .select('id, name')
+                .select('id, name, city, region')
                 .eq('status', 'active')
+                .order('name')
 
-            if (data) setDealers(data)
+            if (data) setAllDealers(data)
         }
         fetchDealers()
     }, [])
@@ -89,6 +99,7 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             name: lead.name,
             phone: lead.phone,
             city: lead.city,
+            region: lead.region || "",
             tenant_id: lead.tenant_id || "",
             assigned_manager_id: lead.assigned_manager_id || "",
             source: lead.source || "manual",
@@ -99,8 +110,71 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
         },
     })
 
+    const selectedCity = form.watch("city")
     const selectedTenantId = form.watch("tenant_id")
     const selectedStatus = form.watch("status")
+    const selectedRegion = form.watch("region")
+
+    // Filtered lists
+    const availableCities = useMemo(() => {
+        return [...new Set(allDealers.map(d => d.city))].sort((a, b) => {
+            const priorityA = a.includes("Tashkent") || a.includes("Ташкент")
+                ? (a === "Tashkent" || a === "Ташкент" ? 2 : 1)
+                : 0;
+            const priorityB = b.includes("Tashkent") || b.includes("Ташкент")
+                ? (b === "Tashkent" || b === "Ташкент" ? 2 : 1)
+                : 0;
+
+            if (priorityA > priorityB) return -1;
+            if (priorityA < priorityB) return 1;
+
+            return a.localeCompare(b);
+        });
+    }, [allDealers]);
+
+    const availableRegions = useMemo(() => {
+        if (!selectedCity) return [];
+        const regions = allDealers
+            .filter(d => d.city === selectedCity && d.region)
+            .map(d => d.region as string);
+        return [...new Set(regions)].sort();
+    }, [allDealers, selectedCity]);
+
+    const filteredDealers = useMemo(() => {
+        if (!selectedCity) return [];
+        if (!selectedRegion) {
+            return allDealers.filter(d => d.city === selectedCity);
+        }
+        return allDealers.filter(d => d.city === selectedCity && d.region === selectedRegion);
+    }, [allDealers, selectedCity, selectedRegion]);
+
+    // Handlers
+    const onCityChange = (val: string) => {
+        form.setValue("city", val);
+        form.setValue("region", "");
+        form.setValue("tenant_id", "");
+        form.setValue("assigned_manager_id", "");
+    };
+
+    const onRegionChange = (val: string) => {
+        form.setValue("region", val);
+        form.setValue("tenant_id", "");
+        form.setValue("assigned_manager_id", "");
+
+        const dealersInRegion = allDealers.filter(d => d.city === selectedCity && d.region === val);
+        if (dealersInRegion.length === 1) {
+            form.setValue("tenant_id", dealersInRegion[0].id);
+        }
+    };
+
+    const onDealerChange = (val: string) => {
+        form.setValue("tenant_id", val);
+        const dealer = allDealers.find(d => d.id === val);
+        if (dealer?.region && !selectedRegion) {
+            form.setValue("region", dealer.region);
+        }
+        form.setValue("assigned_manager_id", "");
+    };
 
     // Fetch managers when tenant changes
     useEffect(() => {
@@ -237,240 +311,321 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
         <div className="grid gap-6 md:grid-cols-3">
             <div className="md:col-span-2">
                 <Form {...form}>
-                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
-                        <div className="grid gap-6 md:grid-cols-2">
-                            <FormField
-                                control={form.control}
-                                name="name"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Имя клиента</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Азиз" {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="phone"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Телефон</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                placeholder="+998 90 123 45 67"
-                                                {...field}
-                                                maxLength={17}
-                                                onChange={(e) => {
-                                                    let value = e.target.value.replace(/\D/g, "");
-                                                    if (!value.startsWith("998")) value = "998" + value;
-                                                    if (value.length > 12) value = value.slice(0, 12);
-
-                                                    let formatted = "+998";
-                                                    if (value.length > 3) formatted += " " + value.slice(3, 5);
-                                                    if (value.length > 5) formatted += " " + value.slice(5, 8);
-                                                    if (value.length > 8) formatted += " " + value.slice(8, 10);
-                                                    if (value.length > 10) formatted += " " + value.slice(10, 12);
-
-                                                    field.onChange(formatted);
-                                                }}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="city"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Город / Регион</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+                        {/* Группа: Данные клиента */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <User className="h-4 w-4 text-primary" />
+                                    Данные клиента
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 md:grid-cols-2">
+                                <FormField
+                                    control={form.control}
+                                    name="name"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Имя клиента</FormLabel>
                                             <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Выберите регион" />
-                                                </SelectTrigger>
+                                                <div className="relative">
+                                                    <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input className="pl-9" placeholder="Азиз" {...field} />
+                                                </div>
                                             </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="Tashkent">Ташкент</SelectItem>
-                                                <SelectItem value="Tashkent Region">Ташкентская область</SelectItem>
-                                                <SelectItem value="Andijan">Андижанская область</SelectItem>
-                                                <SelectItem value="Bukhara">Бухарская область</SelectItem>
-                                                <SelectItem value="Fergana">Ферганская область</SelectItem>
-                                                <SelectItem value="Jizzakh">Джизакская область</SelectItem>
-                                                <SelectItem value="Namangan">Наманганская область</SelectItem>
-                                                <SelectItem value="Navoi">Навоийская область</SelectItem>
-                                                <SelectItem value="Qashqadaryo">Кашкадарьинская область</SelectItem>
-                                                <SelectItem value="Samarkand">Самаркандская область</SelectItem>
-                                                <SelectItem value="Sirdaryo">Сырдарьинская область</SelectItem>
-                                                <SelectItem value="Surkhondaryo">Сурхандарьинская область</SelectItem>
-                                                <SelectItem value="Xorazm">Хорезмская область</SelectItem>
-                                                <SelectItem value="Karakalpakstan">Республика Каракалпакстан</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="tenant_id"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Филиал / Дилер</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="phone"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Телефон</FormLabel>
                                             <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Выберите дилера" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {dealers.map(dealer => (
-                                                    <SelectItem key={dealer.id} value={dealer.id}>
-                                                        {dealer.name}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                                <div className="relative">
+                                                    <Phone className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                    <Input
+                                                        className="pl-9"
+                                                        placeholder="+998 90 123 45 67"
+                                                        {...field}
+                                                        maxLength={17}
+                                                        onChange={(e) => {
+                                                            let value = e.target.value.replace(/\D/g, "");
+                                                            if (!value.startsWith("998")) value = "998" + value;
+                                                            if (value.length > 12) value = value.slice(0, 12);
 
-                            <FormField
-                                control={form.control}
-                                name="assigned_manager_id"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Менеджер</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedTenantId || managers.length === 0}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Выберите менеджера" />
-                                                </SelectTrigger>
+                                                            let formatted = "+998";
+                                                            if (value.length > 3) formatted += " " + value.slice(3, 5);
+                                                            if (value.length > 5) formatted += " " + value.slice(5, 8);
+                                                            if (value.length > 8) formatted += " " + value.slice(8, 10);
+                                                            if (value.length > 10) formatted += " " + value.slice(10, 12);
+
+                                                            field.onChange(formatted);
+                                                        }}
+                                                    />
+                                                </div>
                                             </FormControl>
-                                            <SelectContent>
-                                                {managers.map(manager => (
-                                                    <SelectItem key={manager.id} value={manager.id}>
-                                                        <div className="flex items-center justify-between w-full">
-                                                            <span>{manager.full_name}</span>
-                                                            {manager.telegram_id && (
-                                                                <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 px-1 rounded uppercase font-bold">TG</span>
-                                                            )}
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="city"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Город / Область</FormLabel>
+                                            <Select onValueChange={onCityChange} value={field.value || ""}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder="Выберите город" />
                                                         </div>
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {availableCities.map(city => (
+                                                        <SelectItem key={city} value={city}>{city}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="region"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Район</FormLabel>
+                                            <Select onValueChange={onRegionChange} value={field.value || ""} disabled={!selectedCity || availableRegions.length === 0}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder={!selectedCity ? "Выберите город" : (availableRegions.length === 0 ? "Нет районов" : "Выберите район")} />
+                                                        </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {availableRegions.map(region => (
+                                                        <SelectItem key={region} value={region}>{region}</SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
 
-                            <FormField
-                                control={form.control}
-                                name="source"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Источник</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Выберите источник" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="manual">Ручной ввод</SelectItem>
-                                                <SelectItem value="instagram">Instagram</SelectItem>
-                                                <SelectItem value="facebook">Facebook</SelectItem>
-                                                <SelectItem value="website">Сайт</SelectItem>
-                                                <SelectItem value="other">Другое</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                            <FormField
-                                control={form.control}
-                                name="status"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Статус</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                            <FormControl>
-                                                <SelectTrigger>
-                                                    <SelectValue placeholder="Выберите статус" />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                <SelectItem value="new">Новый</SelectItem>
-                                                <SelectItem value="processing">В работе</SelectItem>
-                                                <SelectItem value="closed">Закрыт</SelectItem>
-                                                <SelectItem value="rejected">Отклонен</SelectItem>
-                                            </SelectContent>
-                                        </Select>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
-                        </div>
+                        {/* Группа: Детали сделки */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Activity className="h-4 w-4 text-primary" />
+                                    Детали сделки
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="grid gap-4 md:grid-cols-2">
+                                <FormField
+                                    control={form.control}
+                                    name="tenant_id"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Филиал / Дилер</FormLabel>
+                                            <Select onValueChange={onDealerChange} value={field.value || ""} disabled={!selectedCity}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <Building2 className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder="Выберите дилера" />
+                                                        </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {filteredDealers.map(dealer => (
+                                                        <SelectItem key={dealer.id} value={dealer.id}>
+                                                            {dealer.name}
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="source"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Источник</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <Globe className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder="Выберите источник" />
+                                                        </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="manual">Ручной ввод</SelectItem>
+                                                    <SelectItem value="instagram">Instagram</SelectItem>
+                                                    <SelectItem value="facebook">Facebook</SelectItem>
+                                                    <SelectItem value="website">Сайт</SelectItem>
+                                                    <SelectItem value="other">Другое</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="assigned_manager_id"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Ответственный менеджер</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedTenantId || managers.length === 0}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <UserCheck className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder="Выберите менеджера" />
+                                                        </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    {managers.map(manager => (
+                                                        <SelectItem key={manager.id} value={manager.id}>
+                                                            <div className="flex items-center justify-between w-full">
+                                                                <span>{manager.full_name}</span>
+                                                                {manager.telegram_id && (
+                                                                    <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 px-1 rounded uppercase font-bold">TG</span>
+                                                                )}
+                                                            </div>
+                                                        </SelectItem>
+                                                    ))}
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="status"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Статус заявки</FormLabel>
+                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                                <FormControl>
+                                                    <SelectTrigger className="w-full">
+                                                        <div className="flex items-center gap-2">
+                                                            <Activity className="h-4 w-4 text-muted-foreground" />
+                                                            <SelectValue placeholder="Выберите статус" />
+                                                        </div>
+                                                    </SelectTrigger>
+                                                </FormControl>
+                                                <SelectContent>
+                                                    <SelectItem value="new">Новый</SelectItem>
+                                                    <SelectItem value="processing">В работе</SelectItem>
+                                                    <SelectItem value="closed">Закрыт</SelectItem>
+                                                    <SelectItem value="rejected">Отклонен</SelectItem>
+                                                </SelectContent>
+                                            </Select>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
 
+                        {/* Результат сделки */}
                         {selectedStatus === 'closed' && (
-                            <FormField
-                                control={form.control}
-                                name="conversion_value"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Сумма сделки (сум)</FormLabel>
-                                        <FormControl>
-                                            <Input
-                                                type="number"
-                                                placeholder="0"
-                                                {...field}
-                                                onChange={e => field.onChange(parseFloat(e.target.value))}
-                                            />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-900/10">
+                                <CardContent className="pt-6">
+                                    <FormField
+                                        control={form.control}
+                                        name="conversion_value"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Сумма сделки (сум)</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Banknote className="absolute left-2.5 top-2.5 h-4 w-4 text-green-600" />
+                                                        <Input
+                                                            type="number"
+                                                            placeholder="0"
+                                                            className="pl-9"
+                                                            {...field}
+                                                            onChange={e => field.onChange(parseFloat(e.target.value))}
+                                                        />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </CardContent>
+                            </Card>
                         )}
 
                         {selectedStatus === 'rejected' && (
-                            <FormField
-                                control={form.control}
-                                name="rejection_reason"
-                                render={({ field }) => (
-                                    <FormItem>
-                                        <FormLabel>Причина отказа</FormLabel>
-                                        <FormControl>
-                                            <Input placeholder="Клиент передумал..." {...field} />
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                            <Card className="border-red-500/30 bg-red-50/50 dark:bg-red-900/10">
+                                <CardContent className="pt-6">
+                                    <FormField
+                                        control={form.control}
+                                        name="rejection_reason"
+                                        render={({ field }) => (
+                                            <FormItem>
+                                                <FormLabel>Причина отказа</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <XCircle className="absolute left-2.5 top-2.5 h-4 w-4 text-red-600" />
+                                                        <Input className="pl-9" placeholder="Клиент передумал..." {...field} />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                </CardContent>
+                            </Card>
                         )}
 
-                        <FormField
-                            control={form.control}
-                            name="comment"
-                            render={({ field }) => (
-                                <FormItem>
-                                    <FormLabel>Комментарий</FormLabel>
-                                    <FormControl>
-                                        <Textarea className="min-h-[100px]" placeholder="Дополнительная информация..." {...field} />
-                                    </FormControl>
-                                    <FormMessage />
-                                </FormItem>
-                            )}
-                        />
+                        {/* Комментарий */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <MessageSquare className="h-4 w-4 text-primary" />
+                                    Примечание
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent>
+                                <FormField
+                                    control={form.control}
+                                    name="comment"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormControl>
+                                                <Textarea className="min-h-[100px]" placeholder="Дополнительная информация..." {...field} />
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
 
-                        <div className="flex justify-between items-center">
+                        <div className="flex justify-between items-center sticky bottom-0 bg-background py-4 border-t mt-8 z-10">
                             <Button type="submit" disabled={isSubmitting}>
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                                 Сохранить изменения
@@ -504,9 +659,9 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             </div>
 
             <div className="space-y-6">
-                <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                <div className="sticky top-6 rounded-lg border bg-card text-card-foreground shadow-sm p-6">
                     <h3 className="font-semibold leading-none tracking-tight mb-4">История изменений</h3>
-                    <div className="space-y-4">
+                    <div className="space-y-4 max-h-[600px] overflow-y-auto">
                         {history.length === 0 && <p className="text-sm text-muted-foreground">История пуста</p>}
                         {history.map((record: any) => (
                             <div key={record.id} className="relative pb-4 pl-4 border-l last:border-0 border-gray-200 dark:border-gray-800">

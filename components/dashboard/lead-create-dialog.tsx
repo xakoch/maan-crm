@@ -9,20 +9,16 @@ import {
     SheetTitle,
     SheetClose,
 } from "@/components/ui/sheet"
-import { LeadEditForm } from "@/components/forms/lead-edit-form"
-import { Lead } from "@/types/app"
+import { LeadCreateForm } from "@/components/forms/lead-create-form"
 import { useRouter } from "next/navigation"
 
-interface LeadEditDialogProps {
-    lead: Lead | null
+interface LeadCreateDialogProps {
     open: boolean
     onOpenChange: (open: boolean) => void
 }
 
-export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps) {
+export function LeadCreateDialog({ open, onOpenChange }: LeadCreateDialogProps) {
     const router = useRouter()
-
-    if (!lead) return null
 
     return (
         <Sheet open={open} onOpenChange={onOpenChange}>
@@ -34,15 +30,14 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
                     <X className="h-6 w-6" />
                 </SheetClose>
                 <div className="p-6">
-                    <SheetHeader className="mb-6 mr-12"> {/* mr-12 to avoid overlap with close button */}
-                        <SheetTitle>Редактирование лида: {lead.name}</SheetTitle>
+                    <SheetHeader className="mb-6 mr-12">
+                        <SheetTitle>Создать новый лид</SheetTitle>
                         <SheetDescription>
-                            Внесите изменения в данные лида и сохраните их.
+                            Заполните форму для создания нового лида.
                         </SheetDescription>
                     </SheetHeader>
                     <div className="pb-8">
-                        <LeadEditForm
-                            lead={lead}
+                        <LeadCreateForm
                             onSuccess={() => {
                                 onOpenChange(false)
                                 router.refresh()

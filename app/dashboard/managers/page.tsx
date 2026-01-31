@@ -4,29 +4,49 @@ import { ManagersClient } from "./client"
 async function getData() {
     const supabase = await createClient()
 
-    const [managersRes, dealersRes] = await Promise.all([
-        supabase
-            .from('users')
-            .select(`
-                id,
-                full_name,
-                email,
-                phone,
-                role,
-                is_active,
-                telegram_id,
-                telegram_username,
-                created_at,
-                tenants:tenant_id (id, name)
-            `)
-            .eq('role', 'manager')
-            .order('created_at', { ascending: false }),
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { managers: [], dealers: [] }
 
-        supabase
-            .from('tenants')
-            .select('id, name')
-            .eq('status', 'active')
-            .order('name')
+    const { data: userDetails } = await supabase
+        .from('users')
+        .select('role, tenant_id')
+        .eq('id', user.id)
+        .single()
+
+    // Base queries
+    let managersQuery = supabase
+        .from('users')
+        .select(`
+            id,
+            full_name,
+            email,
+            phone,
+            role,
+            is_active,
+            telegram_id,
+            telegram_username,
+            created_at,
+            tenants:tenant_id (id, name)
+        `)
+        .eq('role', 'manager')
+        .order('created_at', { ascending: false })
+
+    let dealersQuery = supabase
+        .from('tenants')
+        .select('id, name')
+        .eq('status', 'active')
+        .order('name')
+
+    // Apply tenancy filters
+    if (userDetails && userDetails.role !== 'super_admin' && userDetails.tenant_id) {
+        managersQuery = managersQuery.eq('tenant_id', userDetails.tenant_id)
+        // Dealers list should only contain their own tenant
+        dealersQuery = dealersQuery.eq('id', userDetails.tenant_id)
+    }
+
+    const [managersRes, dealersRes] = await Promise.all([
+        managersQuery,
+        dealersQuery
     ])
 
     if (managersRes.error) {

@@ -4,7 +4,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, MapPin, User, Phone } from "lucide-react"
+import { Calendar, MapPin, User, Phone, Building2, Globe, Instagram, Facebook, Laptop, HelpCircle } from "lucide-react"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,16 @@ interface LeadCardProps {
     lead: Lead
     isOverlay?: boolean
     onClick?: () => void
+}
+
+const getSourceIcon = (source: string) => {
+    switch (source) {
+        case 'instagram': return <Instagram className="w-2.5 h-2.5 mr-1" />;
+        case 'facebook': return <Facebook className="w-2.5 h-2.5 mr-1" />;
+        case 'website': return <Globe className="w-2.5 h-2.5 mr-1" />;
+        case 'manual': return <Laptop className="w-2.5 h-2.5 mr-1" />;
+        default: return <HelpCircle className="w-2.5 h-2.5 mr-1" />;
+    }
 }
 
 export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
@@ -72,7 +82,8 @@ export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
                         {lead.name}
                     </CardTitle>
                     {lead.source && (
-                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 opacity-70">
+                        <Badge variant="outline" className="text-[9px] px-1 py-0 h-4 shrink-0 opacity-70 flex items-center">
+                            {getSourceIcon(lead.source)}
                             {lead.source}
                         </Badge>
                     )}
@@ -84,12 +95,25 @@ export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
             </CardHeader>
             <CardContent className="p-2 pt-1 space-y-1.5">
                 <div className="flex flex-col gap-1 text-[11px] text-muted-foreground">
-                    <div className="flex items-center gap-1.5">
-                        <MapPin className="w-2.5 h-2.5" />
-                        <span className="truncate max-w-[150px]">
-                            {lead.city} {lead.region ? `, ${lead.region}` : ''}
-                        </span>
+                    <div className="flex flex-col gap-0.5">
+                        <div className="flex items-center gap-1.5">
+                            <MapPin className="w-2.5 h-2.5 shrink-0" />
+                            <span className="truncate max-w-[150px] font-medium">
+                                {lead.city}
+                            </span>
+                        </div>
+                        {lead.region && (
+                            <div className="pl-4 text-[10px] opacity-80 truncate max-w-[150px]">
+                                {lead.region}
+                            </div>
+                        )}
                     </div>
+                    {lead.tenants?.name && (
+                        <div className="flex items-center gap-1.5 text-muted-foreground/80">
+                            <Building2 className="w-2.5 h-2.5" />
+                            <span className="truncate max-w-[150px]">{lead.tenants.name}</span>
+                        </div>
+                    )}
                     {lead.managers?.full_name && (
                         <div className="flex items-center gap-1.5 text-primary/80">
                             <User className="w-2.5 h-2.5" />

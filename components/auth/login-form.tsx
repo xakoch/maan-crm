@@ -52,23 +52,16 @@ export default function LoginForm() {
             const supabase = createClient();
             let emailToSignIn = values.login;
 
-            // 1. Проверяем, является ли ввод Email-ом
-            const isEmail = values.login.includes("@");
+            // 1. Проверяем, является ли ввод Email-ом (используем trim)
+            const cleanedLogin = values.login.trim();
+            const isEmail = cleanedLogin.includes("@");
 
-            // 2. Если это НЕ Email, ищем email по username в нашей таблице users
+            // 2. Если это НЕ Email, предполагаем, что это username дилера и добавляем домен
             if (!isEmail) {
-                // Ищем пользователя по username
-                const { data: user, error: userError } = await supabase
-                    .from("users")
-                    .select("email")
-                    .eq("username", values.login)
-                    .single();
-
-                if (userError || !user) {
-                    throw new Error("Пользователь с таким именем не найден");
-                }
-
-                emailToSignIn = user.email;
+                // Используем формат: username@maancrm.local (приводим к нижнему регистру для надежности)
+                emailToSignIn = `${cleanedLogin.toLowerCase()}@maancrm.local`;
+            } else {
+                emailToSignIn = cleanedLogin;
             }
 
             // 3. Выполняем вход через Supabase Auth (используя всегда Email)

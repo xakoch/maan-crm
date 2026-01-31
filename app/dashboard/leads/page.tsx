@@ -6,7 +6,20 @@ export const dynamic = 'force-dynamic'
 async function getData() {
     const supabase = await createClient()
 
-    const { data, error } = await supabase
+    const { data: { user } } = await supabase.auth.getUser()
+
+    if (!user) {
+        return []
+    }
+
+    // Get user details to check role and tenant
+    const { data: userDetails } = await supabase
+        .from('users')
+        .select('role, tenant_id')
+        .eq('id', user.id)
+        .single()
+
+    let query = supabase
         .from('leads')
         .select(`
             *,
@@ -14,6 +27,13 @@ async function getData() {
             managers:assigned_manager_id (full_name)
         `)
         .order('created_at', { ascending: false })
+
+    // Apply filter if not super_admin
+    if (userDetails && userDetails.role !== 'super_admin' && userDetails.tenant_id) {
+        query = query.eq('tenant_id', userDetails.tenant_id)
+    }
+
+    const { data, error } = await query
 
     if (error) {
         console.error('Error fetching leads:', error.message)

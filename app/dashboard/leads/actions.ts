@@ -7,38 +7,15 @@ import { Database } from "@/types/database.types"
 type LeadStatus = Database['public']['Tables']['leads']['Row']['status']
 
 export async function updateLeadStatus(id: string, status: LeadStatus) {
-    console.log("=== SERVER ACTION CALLED ===")
-    console.log("Lead ID:", id)
-    console.log("New Status:", status)
-
     const supabase = await createClient()
 
-    // Check current user
-    const { data: { user }, error: userError } = await supabase.auth.getUser()
-    console.log("Current user:", user?.email || "No user", userError?.message || "")
-
     try {
-        // First, let's see what the current status is
-        const { data: currentLead, error: selectError } = await supabase
-            .from('leads')
-            .select('id, status, name')
-            .eq('id', id)
-            .single()
-
-        console.log("Current lead data:", currentLead)
-        if (selectError) {
-            console.error("Select error:", selectError)
-        }
-
         // Now update
         const { data, error } = await supabase
             .from('leads')
             .update({ status })
             .eq('id', id)
             .select()
-
-        console.log("Update result - data:", data)
-        console.log("Update result - error:", error)
 
         if (error) {
             console.error("Server Action Update Error:", error)
@@ -51,7 +28,6 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
         }
 
         revalidatePath('/dashboard/leads')
-        console.log("=== UPDATE SUCCESS ===")
         return { success: true }
     } catch (e: any) {
         console.error("Server Action Exception:", e)

@@ -2,7 +2,7 @@
 
 import Link from "next/link"
 import { ColumnDef } from "@tanstack/react-table"
-import { MoreHorizontal } from "lucide-react"
+import { MoreHorizontal, MapPin, Phone, Building2, User, Calendar } from "lucide-react"
 
 import { Button } from "@/components/ui/button"
 import {
@@ -23,6 +23,7 @@ type Lead = {
     name: string
     phone: string
     city: string
+    region: string | null
     status: string | null
     created_at: string
     tenants: { name: string } | null
@@ -74,8 +75,9 @@ export const columns: ColumnDef<Lead>[] = [
             return (
                 <Link
                     href={`/dashboard/leads/${lead.id}`}
-                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    className="flex items-center gap-2 font-medium text-blue-600 hover:underline dark:text-blue-400"
                 >
+                    <User className="h-3 w-3 text-muted-foreground" />
                     {lead.name}
                 </Link>
             )
@@ -84,6 +86,30 @@ export const columns: ColumnDef<Lead>[] = [
     {
         accessorKey: "phone",
         header: "Телефон",
+        cell: ({ row }) => (
+            <div className="flex items-center gap-2">
+                <Phone className="h-3 w-3 text-muted-foreground" />
+                {row.original.phone}
+            </div>
+        )
+    },
+    {
+        id: "location",
+        header: "Локация",
+        cell: ({ row }) => {
+            const lead = row.original;
+            return (
+                <div className="flex flex-col text-sm">
+                    <span className="font-medium flex items-center gap-2">
+                        <MapPin className="h-3 w-3 text-muted-foreground" />
+                        {lead.city}
+                    </span>
+                    {lead.region && (
+                        <span className="text-xs text-muted-foreground pl-5">{lead.region}</span>
+                    )}
+                </div>
+            )
+        }
     },
     {
         accessorKey: "tenants.name",
@@ -91,7 +117,12 @@ export const columns: ColumnDef<Lead>[] = [
         cell: ({ row }) => {
             // Access nested data safely
             const tenant = row.original.tenants
-            return tenant ? tenant.name : <span className="text-muted-foreground">-</span>
+            return tenant ? (
+                <div className="flex items-center gap-2">
+                    <Building2 className="h-3 w-3 text-muted-foreground" />
+                    {tenant.name}
+                </div>
+            ) : <span className="text-muted-foreground">-</span>
         }
     },
     {
@@ -99,7 +130,12 @@ export const columns: ColumnDef<Lead>[] = [
         header: "Менеджер",
         cell: ({ row }) => {
             const manager = row.original.managers
-            return manager ? manager.full_name : <span className="text-muted-foreground">Не назначен</span>
+            return manager ? (
+                <div className="flex items-center gap-2">
+                    <User className="h-3 w-3 text-muted-foreground" />
+                    {manager.full_name}
+                </div>
+            ) : <span className="text-muted-foreground">Не назначен</span>
         }
     },
     {
@@ -107,7 +143,12 @@ export const columns: ColumnDef<Lead>[] = [
         header: "Дата",
         cell: ({ row }) => {
             const date = new Date(row.getValue("created_at"))
-            return <div>{format(date, "d MMM HH:mm", { locale: ru })}</div>
+            return (
+                <div className="flex items-center gap-2">
+                    <Calendar className="h-3 w-3 text-muted-foreground" />
+                    {format(date, "d MMM HH:mm", { locale: ru })}
+                </div>
+            )
         },
     },
     {

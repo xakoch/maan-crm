@@ -16,6 +16,7 @@ import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import Link from "next/link"
 import { Database } from "@/types/database.types"
+import { DealerActionsCell } from "./dealer-actions-cell"
 
 type Dealer = Database['public']['Tables']['tenants']['Row']
 
@@ -70,21 +71,6 @@ export const columns: ColumnDef<Dealer>[] = [
     {
         id: "actions",
         header: "",
-        cell: ({ row }) => {
-            const dealer = row.original
-
-            return (
-                <div className="text-right">
-                    <Link href={`/dashboard/dealers/${dealer.id}`}>
-                        <Button
-                            size="sm"
-                            className="bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
-                        >
-                            Открыть
-                        </Button>
-                    </Link>
-                </div>
-            )
-        },
+        cell: ({ row }) => <DealerActionsCell dealer={row.original} />,
     },
 ]

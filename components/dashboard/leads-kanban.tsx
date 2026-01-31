@@ -104,7 +104,6 @@ export function LeadsKanban({ initialLeads }: LeadsKanbanProps) {
         const lead = leads.find(l => l.id === leadId)
         if (lead) {
             setOriginalStatus(lead.status)
-            console.log("=== DRAG START === Original status:", lead.status)
         }
         setActiveId(leadId)
     }
@@ -135,23 +134,13 @@ export function LeadsKanban({ initialLeads }: LeadsKanbanProps) {
                 })
             }
         }
-        // Dropping over another card has been handled by onDragEnd mostly for sorting, 
-        // but for changing status across columns we can do real-time updates here if we want 
-        // strictly visual sortable moving. 
-        // For simple Kanban where order inside column might not be persisted yet, 
-        // we just care about status change.
     }
 
     const onDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event
-        console.log("=== onDragEnd CALLED ===")
-        console.log("Active:", active?.id)
-        console.log("Over:", over?.id)
-        console.log("Over data:", over?.data?.current)
         setActiveId(null)
 
         if (!over) {
-            console.log("No 'over' target, returning")
             return
         }
 
@@ -160,41 +149,29 @@ export function LeadsKanban({ initialLeads }: LeadsKanbanProps) {
 
         // Skip if dropped on itself
         if (activeId === overId) {
-            console.log("Dropped on self, checking container from data")
-            // Can't determine new status from self-drop, return
             return
         }
 
         const activeLead = leads.find(l => l.id === activeId)
         if (!activeLead) {
-            console.log("Active lead not found, returning")
             return
         }
-
-        console.log("Active lead:", activeLead.name, "current status:", activeLead.status)
 
         let newStatus: LeadStatus | undefined
 
         // Check if dropped over a column container (column IDs are 'new', 'processing', 'closed', 'rejected')
         if (columns.some(col => col.id === overId)) {
             newStatus = overId as LeadStatus
-            console.log("Dropped over column:", newStatus)
         }
         // If dropped over another card, inherit its status
         else {
             const overLead = leads.find(l => l.id === overId)
             if (overLead) {
                 newStatus = overLead.status
-                console.log("Dropped over card, inheriting status:", newStatus)
             }
         }
 
-        console.log("New status resolved to:", newStatus)
-        console.log("Original status:", originalStatus)
-        console.log("Status changed?", newStatus && originalStatus !== newStatus)
-
         if (newStatus && originalStatus && originalStatus !== newStatus) {
-            console.log("=== CALLING SERVER ACTION ===")
             // State already updated by onDragOver, no need for optimistic update here
 
             // Server update (via Server Action)
