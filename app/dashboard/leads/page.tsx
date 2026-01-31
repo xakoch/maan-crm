@@ -33,6 +33,11 @@ async function getData() {
         query = query.eq('tenant_id', userDetails.tenant_id)
     }
 
+    // Managers see only their own leads OR new leads (to pick up)
+    if (userDetails?.role === 'manager') {
+        query = query.or(`assigned_manager_id.eq.${user.id},status.eq.new`)
+    }
+
     const { data, error } = await query
 
     if (error) {

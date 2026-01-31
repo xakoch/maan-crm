@@ -41,6 +41,8 @@ import {
 } from "@/components/ui/alert-dialog"
 import { createClient } from "../../lib/supabase/client"
 
+import { createManagerAction, updateManagerAction } from "@/app/dashboard/managers/actions"
+
 const managerFormSchema = z.object({
     full_name: z.string().min(2, "Имя должно быть не короче 2 символов"),
     email: z.string().email("Введите корректный email"),
@@ -48,8 +50,12 @@ const managerFormSchema = z.object({
     tenant_id: z.string().min(1, "Выберите дилера"),
     telegram_username: z.string().optional(),
     is_active: z.boolean(),
-    password: z.string().optional(), // For creation only
-})
+    password: z.string().optional(),
+}).refine(data => {
+    // Password required if no initialData (creation mode) - handled in component logic actually
+    // or we can make schema dynamic. For simplicity, we check in onSubmit.
+    return true;
+});
 
 type ManagerFormValues = z.infer<typeof managerFormSchema>
 
@@ -66,7 +72,7 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
     const [isDeleting, setIsDeleting] = useState(false)
     const [dealers, setDealers] = useState<{ id: string, name: string }[]>([])
 
-    // Fetch dealers for select
+    // ... fetchDealers effect ...
     useEffect(() => {
         async function fetchDealers() {
             const supabase = createClient()
@@ -74,7 +80,6 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                 .from('tenants')
                 .select('id, name')
                 .eq('status', 'active')
-
             if (data) setDealers(data)
         }
         fetchDealers()
@@ -96,36 +101,22 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
     async function onSubmit(values: ManagerFormValues) {
         setIsSubmitting(true)
         try {
-            const supabase = createClient()
-
-            const dataToSave = {
-                full_name: values.full_name,
-                email: values.email,
-                phone: values.phone,
-                tenant_id: values.tenant_id,
-                telegram_username: values.telegram_username || null,
-                is_active: values.is_active,
-                role: 'manager' as 'manager'
+            if (!initialData && !values.password) {
+                form.setError("password", { message: "Пароль обязателен при создании" })
+                setIsSubmitting(false)
+                return
             }
 
-            let error;
-
+            let result;
             if (initialData) {
-                // Update
-                const { error: updateError } = await supabase
-                    .from("users")
-                    .update(dataToSave)
-                    .eq('id', initialData.id)
-                error = updateError
+                result = await updateManagerAction(initialData.id, values);
             } else {
-                // Create
-                const { error: createError } = await supabase
-                    .from("users")
-                    .insert([dataToSave])
-                error = createError
+                result = await createManagerAction(values);
             }
 
-            if (error) throw error
+            if (!result.success) {
+                throw new Error(result.error);
+            }
 
             toast.success(initialData ? "Менеджер обновлен" : "Менеджер создан")
 
@@ -142,22 +133,17 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
     }
 
     async function onDelete() {
+        // ... (keep existing)
         setIsDeleting(true)
         try {
             const supabase = createClient()
-            const { error } = await supabase
-                .from('users')
-                .delete()
-                .eq('id', initialData?.id!)
-
+            const { error } = await supabase.from('users').delete().eq('id', initialData?.id!)
             if (error) throw error
-
             toast.success("Менеджер удален")
             router.push("/dashboard/managers")
             router.refresh()
         } catch (error: any) {
-            console.error(error)
-            toast.error(error.message || "Ошибка при удалении")
+            toast.error(error.message)
             setIsDeleting(false)
         }
     }
@@ -349,6 +335,29 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                             </FormItem>
                         )}
                     />
+
+                    {!initialData && (
+                        <FormField
+                            control={form.control}
+                            name="password"
+                            render={({ field }) => (
+                                <FormItem>
+                                    <FormLabel>Пароль</FormLabel>
+                                    <FormControl>
+                                        <Input
+                                            type="password"
+                                            placeholder="Минимум 6 символов"
+                                            {...field}
+                                        />
+                                    </FormControl>
+                                    <FormDescription>
+                                        Пароль для первого входа
+                                    </FormDescription>
+                                    <FormMessage />
+                                </FormItem>
+                            )}
+                        />
+                    )}
                 </div>
 
                 <div className="flex items-center justify-between">

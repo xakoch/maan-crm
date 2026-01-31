@@ -30,9 +30,17 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // Base query builder helper
     const applyFilter = (query: any) => {
+        // 1. Filter by Tenant (for everyone except super_admin)
         if (profile?.role !== 'super_admin' && profile?.tenant_id) {
-            return query.eq('tenant_id', profile.tenant_id);
+            query = query.eq('tenant_id', profile.tenant_id);
         }
+
+        // 2. Filter by Manager (OWN data only)
+        // Managers see stats only for leads assigned to them
+        if (profile?.role === 'manager') {
+            query = query.eq('assigned_manager_id', user.id);
+        }
+
         return query;
     };
 
@@ -71,6 +79,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     if (profile?.role !== 'super_admin' && profile?.tenant_id) {
         leadsQuery = leadsQuery.eq('tenant_id', profile.tenant_id);
     }
+    if (profile?.role === 'manager') {
+        leadsQuery = leadsQuery.eq('assigned_manager_id', user.id);
+    }
 
     const { data: leadsData } = await leadsQuery;
 
@@ -105,6 +116,9 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     if (profile?.role !== 'super_admin' && profile?.tenant_id) {
         recentQuery = recentQuery.eq('tenant_id', profile.tenant_id);
+    }
+    if (profile?.role === 'manager') {
+        recentQuery = recentQuery.eq('assigned_manager_id', user.id);
     }
 
     const { data: recentLeadsData } = await recentQuery;
