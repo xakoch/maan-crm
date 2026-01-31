@@ -112,6 +112,10 @@ export async function POST(req: NextRequest) {
             console.log("Found manager:", manager?.full_name || "NOT FOUND");
 
             if (!manager) {
+                // Send debug info
+                const debugInfo = `🔍 Debug:\nВсего пользователей: ${allUsers?.length}\nИщем: ${text}\nПримеры ID:\n${allUsers?.slice(0, 3).map(u => `- ${u.full_name}: ...${u.id.slice(-6)}`).join('\n')}`;
+                await sendMessage(chatId, debugInfo);
+
                 await sendMessage(chatId,
                     `❌ Пользователь с ID *${text}* не найден.\\n\\nПожалуйста, проверьте 6 символов в колонке Link ID и попробуйте снова.`,
                     { parse_mode: "Markdown" }
