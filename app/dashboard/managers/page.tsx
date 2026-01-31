@@ -14,6 +14,7 @@ async function getData() {
                 phone,
                 role,
                 is_active,
+                telegram_id,
                 telegram_username,
                 created_at,
                 tenants:tenant_id (id, name)

@@ -20,7 +20,6 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import { Textarea } from "@/components/ui/textarea";
 import {
     Select,
     SelectContent,
@@ -30,38 +29,12 @@ import {
 } from "@/components/ui/select";
 import { createClient } from "../../lib/supabase/client";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 
-const cities = [
-    { value: "Tashkent", label: "Ташкент" },
-    { value: "Samarkand", label: "Самарканд" },
-    { value: "Bukhara", label: "Бухара" },
-    { value: "Andijan", label: "Андижан" },
-    { value: "Fergana", label: "Фергана" },
-    { value: "Namangan", label: "Наманган" },
-    { value: "Navoi", label: "Навои" },
-    { value: "Urgench", label: "Ургенч" },
-    { value: "Nukus", label: "Нукус" },
-    { value: "Termez", label: "Термез" },
-    { value: "Qarshi", label: "Карши" },
-    { value: "Jizzakh", label: "Джизак" },
-    { value: "Gulistan", label: "Гулистан" },
-];
-
-const regions = [
-    { value: "Yunusabad", label: "Юнусабадский" },
-    { value: "Mirzo Ulugbek", label: "Мирзо-Улугбекский" },
-    { value: "Chilanzar", label: "Чиланзарский" },
-    { value: "Yashnobod", label: "Яшнабадский" },
-    { value: "Mirabad", label: "Мирабадский" },
-    { value: "Shaykhontohur", label: "Шайхантахурский" },
-    { value: "Almazar", label: "Алмазарский" },
-    { value: "Sergeli", label: "Сергелийский" },
-    { value: "Yakkasaroy", label: "Яккасарайский" },
-    { value: "Uchtepa", label: "Учтепинский" },
-    { value: "Bektemir", label: "Бектемирский" },
-    { value: "Yangihayot", label: "Янгихаётский" },
-];
+interface DealerLocation {
+    city: string;
+    region: string | null;
+}
 
 const translations = {
     ru: {
@@ -71,7 +44,7 @@ const translations = {
         namePlaceholder: "Азиз Азизов",
         phoneLabel: "Телефон",
         phonePlaceholder: "+998 90 123 45 67",
-        cityLabel: "Город",
+        cityLabel: "Город / Область",
         cityPlaceholder: "Выберите город",
         regionLabel: "Район",
         regionPlaceholder: "Выберите район",
@@ -82,37 +55,10 @@ const translations = {
         sendMore: "Отправить еще одну заявку",
         validationName: "Имя должно содержать минимум 2 символа",
         validationPhone: "Введите корректный номер телефона",
-        validationCity: "Введите название города",
+        validationCity: "Выберите город",
         validationRegion: "Выберите район",
-        cities: [
-            { value: "Tashkent", label: "Ташкент" },
-            { value: "Samarkand", label: "Самарканд" },
-            { value: "Bukhara", label: "Бухара" },
-            { value: "Andijan", label: "Андижан" },
-            { value: "Fergana", label: "Фергана" },
-            { value: "Namangan", label: "Наманган" },
-            { value: "Navoi", label: "Навои" },
-            { value: "Urgench", label: "Ургенч" },
-            { value: "Nukus", label: "Нукус" },
-            { value: "Termez", label: "Термез" },
-            { value: "Qarshi", label: "Карши" },
-            { value: "Jizzakh", label: "Джизак" },
-            { value: "Gulistan", label: "Гулистан" },
-        ],
-        regions: [
-            { value: "Yunusabad", label: "Юнусабадский" },
-            { value: "Mirzo Ulugbek", label: "Мирзо-Улугбекский" },
-            { value: "Chilanzar", label: "Чиланзарский" },
-            { value: "Yashnobod", label: "Яшнабадский" },
-            { value: "Mirabad", label: "Мирабадский" },
-            { value: "Shaykhontohur", label: "Шайхантахурский" },
-            { value: "Almazar", label: "Алмазарский" },
-            { value: "Sergeli", label: "Сергелийский" },
-            { value: "Yakkasaroy", label: "Яккасарайский" },
-            { value: "Uchtepa", label: "Учтепинский" },
-            { value: "Bektemir", label: "Бектемирский" },
-            { value: "Yangihayot", label: "Янгихаётский" },
-        ]
+        noRegionsNeeded: "Район не требуется",
+        loading: "Загрузка...",
     },
     uz: {
         title: "Narxini bilish",
@@ -121,7 +67,7 @@ const translations = {
         namePlaceholder: "Aziz Azizov",
         phoneLabel: "Telefon raqam",
         phonePlaceholder: "+998 90 123 45 67",
-        cityLabel: "Shahar",
+        cityLabel: "Shahar / Viloyat",
         cityPlaceholder: "Shaharni tanlang",
         regionLabel: "Tuman",
         regionPlaceholder: "Tumanni tanlang",
@@ -134,35 +80,8 @@ const translations = {
         validationPhone: "To'g'ri telefon raqamini kiriting",
         validationCity: "Shaharni tanlang",
         validationRegion: "Tumanni tanlang",
-        cities: [
-            { value: "Tashkent", label: "Toshkent" },
-            { value: "Samarkand", label: "Samarqand" },
-            { value: "Bukhara", label: "Buxoro" },
-            { value: "Andijan", label: "Andijon" },
-            { value: "Fergana", label: "Farg'ona" },
-            { value: "Namangan", label: "Namangan" },
-            { value: "Navoi", label: "Navoiy" },
-            { value: "Urgench", label: "Urganch" },
-            { value: "Nukus", label: "Nukus" },
-            { value: "Termez", label: "Termiz" },
-            { value: "Qarshi", label: "Qarshi" },
-            { value: "Jizzakh", label: "Jizzax" },
-            { value: "Gulistan", label: "Guliston" },
-        ],
-        regions: [
-            { value: "Yunusabad", label: "Yunusobod" },
-            { value: "Mirzo Ulugbek", label: "Mirzo Ulug'bek" },
-            { value: "Chilanzar", label: "Chilonzor" },
-            { value: "Yashnobod", label: "Yashnobod" },
-            { value: "Mirabad", label: "Mirobod" },
-            { value: "Shaykhontohur", label: "Shayxontohur" },
-            { value: "Almazar", label: "Olmazor" },
-            { value: "Sergeli", label: "Sergeli" },
-            { value: "Yakkasaroy", label: "Yakkasaroy" },
-            { value: "Uchtepa", label: "Uchtepa" },
-            { value: "Bektemir", label: "Bektemir" },
-            { value: "Yangihayot", label: "Yangihayot" },
-        ]
+        noRegionsNeeded: "Tuman talab qilinmaydi",
+        loading: "Yuklanmoqda...",
     }
 };
 
@@ -172,18 +91,73 @@ interface LeadFormProps {
 
 export default function LeadForm({ language = 'ru' }: LeadFormProps) {
     const t = translations[language];
+    const [dealerLocations, setDealerLocations] = useState<DealerLocation[]>([]);
+    const [isLoading, setIsLoading] = useState(true);
+    const [selectedCity, setSelectedCity] = useState("");
+
+    // Fetch available cities and regions from active dealers
+    useEffect(() => {
+        async function fetchDealerLocations() {
+            setIsLoading(true);
+            try {
+                const supabase = createClient();
+                const { data, error } = await supabase
+                    .from("tenants")
+                    .select("city, region")
+                    .eq("status", "active");
+
+                if (error) throw error;
+
+                setDealerLocations(data || []);
+            } catch (error) {
+                console.error("Error fetching dealer locations:", error);
+                toast.error("Ошибка загрузки данных");
+            } finally {
+                setIsLoading(false);
+            }
+        }
+
+        fetchDealerLocations();
+    }, []);
+
+    // Get unique cities from dealers
+    const availableCities = useMemo(() => {
+        const cities = [...new Set(dealerLocations.map(d => d.city))];
+        return cities.sort((a, b) => {
+            // Priority: Tashkent, Tashkent Region, then others Alphabetically
+            const priorityA = a.includes("Tashkent") || a.includes("Ташкент")
+                ? (a === "Tashkent" || a === "Ташкент" ? 2 : 1)
+                : 0;
+            const priorityB = b.includes("Tashkent") || b.includes("Ташкент")
+                ? (b === "Tashkent" || b === "Ташкент" ? 2 : 1)
+                : 0;
+
+            if (priorityA > priorityB) return -1;
+            if (priorityA < priorityB) return 1;
+
+            return a.localeCompare(b);
+        });
+    }, [dealerLocations]);
+
+    // Get regions for selected city
+    const availableRegions = useMemo(() => {
+        if (!selectedCity) return [];
+        const regions = dealerLocations
+            .filter(d => d.city === selectedCity && d.region)
+            .map(d => d.region as string);
+        return [...new Set(regions)].sort();
+    }, [dealerLocations, selectedCity]);
 
     const formSchema = z.object({
         name: z.string().min(2, t.validationName),
         phone: z.string().min(9, t.validationPhone),
-        city: z.string().min(2, t.validationCity),
-        region: z.string().min(2, t.validationRegion),
+        city: z.string().min(1, t.validationCity),
+        region: z.string().optional(),
     });
 
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
 
-    // 1. Define your form.
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
         defaultValues: {
@@ -194,25 +168,116 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
         },
     });
 
-    // Reset form validation when language changes to update error messages
-    // trigger re-validation if needed, or just let it be until next submit
+    // Handle city change - reset region when city changes
+    const handleCityChange = (value: string) => {
+        setSelectedCity(value);
+        form.setValue("city", value);
+        form.setValue("region", "");
+    };
 
-    // 2. Define a submit handler.
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsSubmitting(true);
         try {
             const supabase = createClient();
 
-            const { error } = await supabase.from("leads").insert({
+            // Find the dealer for this city/region to auto-assign
+            const matchingDealer = dealerLocations.find(
+                d => d.city === values.city &&
+                    (!values.region || d.region === values.region)
+            );
+
+            // Get dealer's tenant_id
+            let tenantId = null;
+            if (matchingDealer) {
+                const { data: dealer } = await supabase
+                    .from("tenants")
+                    .select("id")
+                    .eq("city", values.city)
+                    .eq("status", "active")
+                    .maybeSingle();
+
+                if (dealer) {
+                    tenantId = dealer.id;
+                }
+            }
+
+            // Find managers and assign automatically
+            let assignedManagerId = null;
+
+            if (tenantId) {
+                // 1. Get all active managers for this tenant
+                const { data: managers } = await supabase
+                    .from("users")
+                    .select("id")
+                    .eq("tenant_id", tenantId)
+                    .eq("role", "manager")
+                    .eq("is_active", true);
+
+                if (managers && managers.length > 0) {
+                    if (managers.length === 1) {
+                        // Only one manager - assign directly
+                        assignedManagerId = managers[0].id;
+                    } else {
+                        // Multiple managers - find the one with least active leads (Round Robin / Load Balancing)
+                        const managerIds = managers.map(m => m.id);
+
+                        // Get counts of active leads for these managers
+                        const { data: leadsData } = await supabase
+                            .from("leads")
+                            .select("assigned_manager_id")
+                            .in("assigned_manager_id", managerIds)
+                            .in("status", ["new", "processing"]);
+
+                        // Count leads per manager
+                        const leadCounts: Record<string, number> = {};
+                        managerIds.forEach(id => leadCounts[id] = 0);
+
+                        leadsData?.forEach(lead => {
+                            if (lead.assigned_manager_id) {
+                                leadCounts[lead.assigned_manager_id] = (leadCounts[lead.assigned_manager_id] || 0) + 1;
+                            }
+                        });
+
+                        // Find manager with minimum leads
+                        let minLeads = Infinity;
+                        let targetManager = managerIds[0];
+
+                        managerIds.forEach(id => {
+                            if (leadCounts[id] < minLeads) {
+                                minLeads = leadCounts[id];
+                                targetManager = id;
+                            }
+                        });
+
+                        assignedManagerId = targetManager;
+                    }
+                }
+            }
+
+            const { data, error } = await supabase.from("leads").insert({
                 name: values.name,
                 phone: values.phone,
                 city: values.city,
                 region: values.region || null,
+                tenant_id: tenantId,
+                assigned_manager_id: assignedManagerId,
                 source: 'website',
-                status: 'new'
-            });
+                status: assignedManagerId ? 'processing' : 'new' // If assigned, set to processing immediately? Or keep new? Best to keep 'new' so they see it. Let's keep 'new' but assigned.
+            })
+                .select()
+                .single();
 
             if (error) throw error;
+
+            // Trigger telegram notification
+            if (data) {
+                // If manager assigned, notify them specifically or generally notify admins
+                await fetch('/api/leads/notify', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ leadId: data.id })
+                }).catch(e => console.error('Error notifying:', e));
+            }
 
             setIsSuccess(true);
             toast.success("Заявка успешно отправлена!");
@@ -254,6 +319,7 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                     <Button
                         onClick={() => {
                             setIsSuccess(false);
+                            setSelectedCity("");
                             form.reset();
                         }}
                         variant="outline"
@@ -348,20 +414,24 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-foreground/80">{t.cityLabel}</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select
+                                            onValueChange={handleCityChange}
+                                            value={selectedCity}
+                                            disabled={isLoading}
+                                        >
                                             <FormControl>
                                                 <SelectTrigger className="w-full bg-white/50 dark:bg-black/20 border-black/5 dark:border-white/10 focus:ring-2 focus:ring-indigo-500 transition-all !h-14 text-lg">
-                                                    <SelectValue placeholder={t.cityPlaceholder} />
+                                                    <SelectValue placeholder={isLoading ? t.loading : t.cityPlaceholder} />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {t.cities.map((city) => (
+                                                {availableCities.map((city) => (
                                                     <SelectItem
-                                                        key={city.value}
-                                                        value={city.value}
+                                                        key={city}
+                                                        value={city}
                                                         className="text-lg py-3 cursor-pointer"
                                                     >
-                                                        {city.label}
+                                                        {city}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -377,20 +447,32 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 render={({ field }) => (
                                     <FormItem className="w-full">
                                         <FormLabel className="text-foreground/80">{t.regionLabel}</FormLabel>
-                                        <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                        <Select
+                                            onValueChange={field.onChange}
+                                            value={field.value}
+                                            disabled={!selectedCity || availableRegions.length === 0}
+                                        >
                                             <FormControl>
                                                 <SelectTrigger className="w-full bg-white/50 dark:bg-black/20 border-black/5 dark:border-white/10 focus:ring-2 focus:ring-indigo-500 transition-all !h-14 text-lg">
-                                                    <SelectValue placeholder={t.regionPlaceholder} />
+                                                    <SelectValue
+                                                        placeholder={
+                                                            !selectedCity
+                                                                ? t.cityPlaceholder
+                                                                : availableRegions.length === 0
+                                                                    ? t.noRegionsNeeded
+                                                                    : t.regionPlaceholder
+                                                        }
+                                                    />
                                                 </SelectTrigger>
                                             </FormControl>
                                             <SelectContent>
-                                                {t.regions.map((region) => (
+                                                {availableRegions.map((region) => (
                                                     <SelectItem
-                                                        key={region.value}
-                                                        value={region.value}
+                                                        key={region}
+                                                        value={region}
                                                         className="text-lg py-3 cursor-pointer"
                                                     >
-                                                        {region.label}
+                                                        {region}
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>
@@ -401,11 +483,10 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                             />
                         </div>
 
-
                         <Button
                             type="submit"
                             className="w-full h-14 text-lg font-medium bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/30"
-                            disabled={isSubmitting}
+                            disabled={isSubmitting || isLoading}
                         >
                             {isSubmitting ? (
                                 <div className="flex items-center gap-2">

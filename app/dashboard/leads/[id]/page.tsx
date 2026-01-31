@@ -32,7 +32,7 @@ async function getLead(id: string) {
 
     const { data, error } = await supabase
         .from('leads')
-        .select('*')
+        .select('*, assigned_manager:users!assigned_manager_id(full_name)')
         .eq('id', id)
         .single()
 

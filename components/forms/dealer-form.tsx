@@ -5,7 +5,7 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
 import { Loader2, Trash2 } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -29,13 +29,22 @@ import {
     FormLabel,
     FormMessage,
 } from "@/components/ui/form"
+import {
+    Select,
+    SelectContent,
+    SelectItem,
+    SelectTrigger,
+    SelectValue,
+} from "@/components/ui/select"
 import { Input } from "@/components/ui/input"
 import { Switch } from "@/components/ui/switch"
 import { createClient } from "../../lib/supabase/client"
+import { cities, getRegions } from "@/lib/uzbekistan-regions"
 
 const dealerFormSchema = z.object({
     name: z.string().min(2, "Название должно быть не короче 2 символов"),
     city: z.string().min(2, "Город обязателен"),
+    region: z.string().min(2, "Регион обязателен"),
     address: z.string().optional(),
     owner_name: z.string().min(2, "Имя владельца обязательно"),
     owner_phone: z.string().min(9, "Телефон обязателен"),
@@ -52,18 +61,37 @@ export function DealerForm({ initialData }: DealerFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [availableRegions, setAvailableRegions] = useState<string[]>([])
 
     const form = useForm<DealerFormValues>({
         resolver: zodResolver(dealerFormSchema),
         defaultValues: initialData || {
             name: "",
             city: "",
+            region: "",
             address: "",
             owner_name: "",
             owner_phone: "",
             status: "active",
         },
     })
+
+    // Watch city field and update available regions
+    const selectedCity = form.watch("city")
+
+    useEffect(() => {
+        if (selectedCity) {
+            const regions = getRegions(selectedCity)
+            setAvailableRegions(regions)
+            // Reset region if city changed and current region is not in new city's regions
+            const currentRegion = form.getValues("region")
+            if (currentRegion && !regions.includes(currentRegion)) {
+                form.setValue("region", "")
+            }
+        } else {
+            setAvailableRegions([])
+        }
+    }, [selectedCity, form])
 
     async function onSubmit(values: DealerFormValues) {
         setIsSubmitting(true)
@@ -76,6 +104,7 @@ export function DealerForm({ initialData }: DealerFormProps) {
                     .update({
                         name: values.name,
                         city: values.city,
+                        region: values.region,
                         address: values.address || null,
                         owner_name: values.owner_name,
                         owner_phone: values.owner_phone,
@@ -91,6 +120,7 @@ export function DealerForm({ initialData }: DealerFormProps) {
                     .insert([{
                         name: values.name,
                         city: values.city,
+                        region: values.region,
                         address: values.address || null,
                         owner_name: values.owner_name,
                         owner_phone: values.owner_phone,
@@ -99,9 +129,9 @@ export function DealerForm({ initialData }: DealerFormProps) {
 
                 if (error) throw error
                 toast.success("Дилер создан")
+                router.push("/dashboard/dealers")
             }
 
-            router.push("/dashboard/dealers")
             router.refresh()
         } catch (error: any) {
             console.error(error)
@@ -154,10 +184,49 @@ export function DealerForm({ initialData }: DealerFormProps) {
                         name="city"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Город</FormLabel>
-                                <FormControl>
-                                    <Input placeholder="Ташкент" {...field} />
-                                </FormControl>
+                                <FormLabel>Город / Область</FormLabel>
+                                <Select onValueChange={field.onChange} defaultValue={field.value}>
+                                    <FormControl>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder="Выберите город" />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {cities.map((city) => (
+                                            <SelectItem key={city} value={city}>
+                                                {city}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
+                        name="region"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Район</FormLabel>
+                                <Select
+                                    onValueChange={field.onChange}
+                                    defaultValue={field.value}
+                                    disabled={!selectedCity || availableRegions.length === 0}
+                                >
+                                    <FormControl>
+                                        <SelectTrigger className="w-full">
+                                            <SelectValue placeholder={selectedCity ? "Выберите район" : "Сначала выберите город"} />
+                                        </SelectTrigger>
+                                    </FormControl>
+                                    <SelectContent>
+                                        {availableRegions.map((region) => (
+                                            <SelectItem key={region} value={region}>
+                                                {region}
+                                            </SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
                                 <FormMessage />
                             </FormItem>
                         )}
@@ -195,7 +264,24 @@ export function DealerForm({ initialData }: DealerFormProps) {
                             <FormItem>
                                 <FormLabel>Телефон владельца</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="+998 90 123 45 67" {...field} />
+                                    <Input
+                                        placeholder="+998 90 123 45 67"
+                                        {...field}
+                                        maxLength={17}
+                                        onChange={(e) => {
+                                            let value = e.target.value.replace(/\D/g, "");
+                                            if (!value.startsWith("998")) value = "998" + value;
+                                            if (value.length > 12) value = value.slice(0, 12);
+
+                                            let formatted = "+998";
+                                            if (value.length > 3) formatted += " " + value.slice(3, 5);
+                                            if (value.length > 5) formatted += " " + value.slice(5, 8);
+                                            if (value.length > 8) formatted += " " + value.slice(8, 10);
+                                            if (value.length > 10) formatted += " " + value.slice(10, 12);
+
+                                            field.onChange(formatted);
+                                        }}
+                                    />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>

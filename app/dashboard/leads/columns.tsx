@@ -69,6 +69,17 @@ export const columns: ColumnDef<Lead>[] = [
     {
         accessorKey: "name",
         header: "Имя",
+        cell: ({ row }) => {
+            const lead = row.original
+            return (
+                <Link
+                    href={`/dashboard/leads/${lead.id}`}
+                    className="font-medium text-blue-600 hover:underline dark:text-blue-400"
+                >
+                    {lead.name}
+                </Link>
+            )
+        }
     },
     {
         accessorKey: "phone",
@@ -101,32 +112,21 @@ export const columns: ColumnDef<Lead>[] = [
     },
     {
         id: "actions",
+        header: "",
         cell: ({ row }) => {
             const lead = row.original
 
             return (
-                <DropdownMenu>
-                    <DropdownMenuTrigger asChild>
-                        <Button variant="ghost" className="h-8 w-8 p-0">
-                            <span className="sr-only">Open menu</span>
-                            <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                    </DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                        <DropdownMenuLabel>Действия</DropdownMenuLabel>
-                        <DropdownMenuItem
-                            onClick={() => navigator.clipboard.writeText(lead.id)}
+                <div className="text-right">
+                    <Link href={`/dashboard/leads/${lead.id}`}>
+                        <Button
+                            size="sm"
+                            className="bg-orange-500 hover:bg-orange-600 text-white font-medium transition-colors"
                         >
-                            Скопировать ID
-                        </DropdownMenuItem>
-                        <DropdownMenuSeparator />
-                        <Link href={`/dashboard/leads/${lead.id}`} className="w-full cursor-pointer">
-                            <DropdownMenuItem className="cursor-pointer">
-                                Открыть заявку
-                            </DropdownMenuItem>
-                        </Link>
-                    </DropdownMenuContent>
-                </DropdownMenu>
+                            Открыть
+                        </Button>
+                    </Link>
+                </div>
             )
         },
     },

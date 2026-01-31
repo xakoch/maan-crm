@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server"
-import { DataTable } from "@/components/ui/data-table"
-import { columns } from "./columns"
+import { DealersTable } from "@/components/dashboard/dealers-table"
 
 async function getDealers() {
     const supabase = await createClient()
@@ -26,13 +25,7 @@ export default async function DealersPage() {
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Дилеры</h1>
             </div>
-            <DataTable
-                columns={columns}
-                data={data}
-                searchKey="name"
-                createLink="/dashboard/dealers/create"
-                createLabel="Добавить дилера"
-            />
+            <DealersTable data={data} />
         </div>
     )
 }

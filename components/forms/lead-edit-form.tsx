@@ -59,14 +59,15 @@ type LeadEditValues = z.infer<typeof leadEditSchema>
 interface LeadEditFormProps {
     lead: any // Type from DB
     history?: any[]
+    onSuccess?: () => void
 }
 
-export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
+export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
     const [dealers, setDealers] = useState<{ id: string, name: string }[]>([])
-    const [managers, setManagers] = useState<{ id: string, full_name: string }[]>([])
+    const [managers, setManagers] = useState<{ id: string, full_name: string, telegram_id?: number | null }[]>([])
 
     // Fetch dealers for select
     useEffect(() => {
@@ -112,7 +113,7 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
             const supabase = createClient()
             const { data } = await supabase
                 .from('users')
-                .select('id, full_name')
+                .select('id, full_name, telegram_id')
                 .eq('tenant_id', selectedTenantId)
                 .eq('role', 'manager')
                 .eq('is_active', true)
@@ -144,11 +145,12 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
 
             if (error) throw error
 
-            // Add history entry if status changed or comment added
+            // Track changes for history
+            const { data: { user } } = await supabase.auth.getUser()
             const statusChanged = values.status !== lead.status
-            if (statusChanged) {
-                const { data: { user } } = await supabase.auth.getUser()
+            const managerChanged = values.assigned_manager_id !== (lead.assigned_manager_id || "") // Handle null/empty string diff
 
+            if (statusChanged) {
                 await supabase.from('lead_history').insert({
                     lead_id: lead.id,
                     changed_by: user?.id,
@@ -156,9 +158,32 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
                     new_status: values.status,
                     comment: values.comment !== lead.comment ? 'Статус изменен + комментарий' : 'Статус изменен'
                 })
-            } else if (values.comment !== lead.comment) {
-                const { data: { user } } = await supabase.auth.getUser()
+            }
 
+            if (managerChanged) {
+                const oldManagerName = lead.assigned_manager?.full_name || 'Не назначен';
+                const newManager = managers.find(m => m.id === values.assigned_manager_id);
+                const newManagerName = newManager?.full_name || 'Не назначен';
+
+                await supabase.from('lead_history').insert({
+                    lead_id: lead.id,
+                    changed_by: user?.id,
+                    old_status: values.status, // Status might keep same, but we record snapshot
+                    new_status: values.status,
+                    comment: `Менеджер: ${oldManagerName} -> ${newManagerName}`
+                })
+
+                // Notify new manager if assigned
+                if (values.assigned_manager_id) {
+                    fetch('/api/leads/notify', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ leadId: lead.id }) // Start command will handle finding the new manager from lead
+                    }).catch(e => console.error('Error notifying:', e));
+                }
+            }
+
+            if (!statusChanged && !managerChanged && values.comment !== lead.comment) {
                 await supabase.from('lead_history').insert({
                     lead_id: lead.id,
                     changed_by: user?.id,
@@ -169,8 +194,11 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
             }
 
             toast.success("Лид обновлен")
-            router.push("/dashboard/leads")
             router.refresh()
+
+            if (onSuccess) {
+                onSuccess()
+            }
         } catch (error: any) {
             console.error(error)
             toast.error(error.message || "Ошибка при обновлении лида")
@@ -191,8 +219,13 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
             if (error) throw error
 
             toast.success("Лид удален")
-            router.push("/dashboard/leads")
-            router.refresh()
+
+            if (onSuccess) {
+                onSuccess()
+            } else {
+                router.push("/dashboard/leads")
+                router.refresh()
+            }
         } catch (error: any) {
             console.error(error)
             toast.error(error.message || "Ошибка при удалении")
@@ -226,7 +259,24 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
                                     <FormItem>
                                         <FormLabel>Телефон</FormLabel>
                                         <FormControl>
-                                            <Input placeholder="+998 90 123 45 67" {...field} />
+                                            <Input
+                                                placeholder="+998 90 123 45 67"
+                                                {...field}
+                                                maxLength={17}
+                                                onChange={(e) => {
+                                                    let value = e.target.value.replace(/\D/g, "");
+                                                    if (!value.startsWith("998")) value = "998" + value;
+                                                    if (value.length > 12) value = value.slice(0, 12);
+
+                                                    let formatted = "+998";
+                                                    if (value.length > 3) formatted += " " + value.slice(3, 5);
+                                                    if (value.length > 5) formatted += " " + value.slice(5, 8);
+                                                    if (value.length > 8) formatted += " " + value.slice(8, 10);
+                                                    if (value.length > 10) formatted += " " + value.slice(10, 12);
+
+                                                    field.onChange(formatted);
+                                                }}
+                                            />
                                         </FormControl>
                                         <FormMessage />
                                     </FormItem>
@@ -305,7 +355,12 @@ export function LeadEditForm({ lead, history = [] }: LeadEditFormProps) {
                                             <SelectContent>
                                                 {managers.map(manager => (
                                                     <SelectItem key={manager.id} value={manager.id}>
-                                                        {manager.full_name}
+                                                        <div className="flex items-center justify-between w-full">
+                                                            <span>{manager.full_name}</span>
+                                                            {manager.telegram_id && (
+                                                                <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 px-1 rounded uppercase font-bold">TG</span>
+                                                            )}
+                                                        </div>
                                                     </SelectItem>
                                                 ))}
                                             </SelectContent>

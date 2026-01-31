@@ -8,6 +8,7 @@ import { Overview } from "@/components/dashboard/overview";
 import { RecentSales } from "@/components/dashboard/recent-sales";
 import { getDashboardStats } from "@/lib/stats";
 import { Button } from "@/components/ui/button";
+import { TelegramSetupButton } from "@/components/dashboard/telegram-setup-button";
 
 export default async function DashboardPage() {
     const cookieStore = await cookies();
@@ -48,6 +49,7 @@ export default async function DashboardPage() {
                 <h2 className="text-3xl font-bold tracking-tight">Dashboard</h2>
                 <div className="flex items-center space-x-2">
                     {/* CalendarDateRangePicker would go here */}
+                    {profile?.role === 'super_admin' && <TelegramSetupButton />}
                     <Button>Скачать отчет</Button>
                 </div>
             </div>

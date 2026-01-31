@@ -1,6 +1,8 @@
 import { createClient } from "@/lib/supabase/server"
 import { LeadsClient } from "./client"
 
+export const dynamic = 'force-dynamic'
+
 async function getData() {
     const supabase = await createClient()
 
