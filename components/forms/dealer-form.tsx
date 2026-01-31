@@ -182,7 +182,7 @@ export function DealerForm({ initialData }: DealerFormProps) {
                             <FormItem>
                                 <FormLabel>Имя владельца/директора</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Иван Иванов" {...field} />
+                                    <Input placeholder="Aziz Azizov" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>

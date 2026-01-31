@@ -166,7 +166,7 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                             <FormItem>
                                 <FormLabel>ФИО</FormLabel>
                                 <FormControl>
-                                    <Input placeholder="Иван Иванов" {...field} />
+                                    <Input placeholder="Aziz Azizov" {...field} />
                                 </FormControl>
                                 <FormMessage />
                             </FormItem>
