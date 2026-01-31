@@ -51,9 +51,6 @@ export async function sendLeadNotification(
             [
                 { text: "✅ Взять в работу", callback_data: `accept_${lead.id}` },
                 { text: "❌ Отказать", callback_data: `reject_${lead.id}` }
-            ],
-            [
-                { text: "📞 Позвонить", url: `tel:${lead.phone.replace(/\s/g, '')}` }
             ]
         ]
     };
