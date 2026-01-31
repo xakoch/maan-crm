@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendMessage, answerCallbackQuery, removeInlineKeyboard } from "@/lib/telegram/bot";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@supabase/supabase-js";
+import { Database } from "@/types/database.types";
 
 // Store pending verifications in memory
 const pendingVerifications = new Map<number, { step: 'awaiting_id' }>();
@@ -8,8 +9,12 @@ const pendingVerifications = new Map<number, { step: 'awaiting_id' }>();
 export async function POST(req: NextRequest) {
     try {
         const update = await req.json();
-        console.log("Telegram Update:", JSON.stringify(update, null, 2));
-        const supabase = await createClient();
+
+        // Use service role client for webhook (no user session)
+        const supabase = createClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        );
 
         // Handle /start command
         if (update.message?.text === '/start') {
