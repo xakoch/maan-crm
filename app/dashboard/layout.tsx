@@ -35,12 +35,23 @@ export default async function DashboardLayout({
         redirect("/login");
     }
 
+    // Fetch user profile to get role
+    const { data: profile } = await supabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single();
+
+    // Default to 'manager' if role is unknown for safety
+    const userRole = profile?.role || 'manager';
+
     return (
         <div className="flex-col md:flex">
             <div className="border-b">
                 <div className="flex h-16 items-center px-4">
-                    <TeamSwitcher />
-                    <MainNav className="mx-6" />
+                    {/* Only show team switcher for admins/dealers or make it read-only for managers */}
+                    <TeamSwitcher role={userRole} />
+                    <MainNav className="mx-6" role={userRole} />
                     <div className="ml-auto flex items-center space-x-4">
                         <ModeToggle />
                         <UserNav />

@@ -34,17 +34,29 @@ const mainNav = [
     },
 ];
 
-interface MainNavProps extends React.HTMLAttributes<HTMLElement> { }
+interface MainNavProps extends React.HTMLAttributes<HTMLElement> {
+    role?: string;
+}
 
-export function MainNav({ className, ...props }: MainNavProps) {
+export function MainNav({ className, role = 'manager', ...props }: MainNavProps) {
     const pathname = usePathname();
+
+    // Filter items based on role
+    const filteredNav = mainNav.filter(item => {
+        // Managers only see Dashboard and Leads
+        if (role === 'manager') {
+            return ['/dashboard', '/dashboard/leads'].includes(item.href);
+        }
+        // Others see everything
+        return true;
+    });
 
     return (
         <nav
             className={cn("flex items-center space-x-4 lg:space-x-6", className)}
             {...props}
         >
-            {mainNav.map((item) => (
+            {filteredNav.map((item) => (
                 <Link
                     key={item.href}
                     href={item.href}

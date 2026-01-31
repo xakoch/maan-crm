@@ -18,22 +18,40 @@ export interface DashboardStats {
 export async function getDashboardStats(): Promise<DashboardStats> {
     const supabase = await createClient();
 
-    // 1. Total Leads
-    const { count: totalLeads } = await supabase
-        .from('leads')
-        .select('*', { count: 'exact', head: true });
+    // Get current user and role
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return getEmptyStats(); // Should be handled by layout but good for safety
 
-    // 2. New Leads (this month or just status 'new', let's use status 'new' for now)
-    const { count: newLeads } = await supabase
+    const { data: profile } = await supabase
+        .from('users')
+        .select('role, tenant_id')
+        .eq('id', user.id)
+        .single();
+
+    // Base query builder helper
+    const applyFilter = (query: any) => {
+        if (profile?.role !== 'super_admin' && profile?.tenant_id) {
+            return query.eq('tenant_id', profile.tenant_id);
+        }
+        return query;
+    };
+
+    // 1. Total Leads
+    const { count: totalLeads } = await applyFilter(supabase
+        .from('leads')
+        .select('*', { count: 'exact', head: true }));
+
+    // 2. New Leads
+    const { count: newLeads } = await applyFilter(supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'new');
+        .eq('status', 'new'));
 
     // 3. Closed Leads
-    const { count: closedLeads } = await supabase
+    const { count: closedLeads } = await applyFilter(supabase
         .from('leads')
         .select('*', { count: 'exact', head: true })
-        .eq('status', 'closed');
+        .eq('status', 'closed'));
 
     // 4. Conversion Rate (Closed / Total * 100)
     const total = totalLeads || 0;
@@ -41,15 +59,20 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     const conversionRate = total > 0 ? (closed / total) * 100 : 0;
 
     // 5. Monthly Leads (Group by month for current year)
-    // Supabase JS doesn't support complex aggregation easily without RPC or Views.
-    // For now, let's fetch leads for the last 6 months and aggregate in JS.
-    // This is not optimal for large datasets but fine for MVP.
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 5);
-    const { data: leadsData } = await supabase
+
+    let leadsQuery = supabase
         .from('leads')
         .select('created_at')
         .gte('created_at', sixMonthsAgo.toISOString());
+
+    // Apply filter manually because applyFilter returns a modified query, simpler to just re-apply logic
+    if (profile?.role !== 'super_admin' && profile?.tenant_id) {
+        leadsQuery = leadsQuery.eq('tenant_id', profile.tenant_id);
+    }
+
+    const { data: leadsData } = await leadsQuery;
 
     const monthlyLeadsMap = new Map<string, number>();
     const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -74,16 +97,22 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
 
     // 6. Recent Leads (Recent Activity)
-    const { data: recentLeadsData } = await supabase
+    let recentQuery = supabase
         .from('leads')
         .select('id, name, status, conversion_value')
         .order('created_at', { ascending: false })
         .limit(5);
 
+    if (profile?.role !== 'super_admin' && profile?.tenant_id) {
+        recentQuery = recentQuery.eq('tenant_id', profile.tenant_id);
+    }
+
+    const { data: recentLeadsData } = await recentQuery;
+
     const recent_leads = recentLeadsData?.map(lead => ({
         id: lead.id,
         name: lead.name,
-        email: null, // Lead table doesn't have email usually, maybe add phone?
+        email: null,
         total_value: lead.conversion_value || 0,
         status: lead.status
     })) || [];
@@ -96,5 +125,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         conversion_rate: Number(conversionRate.toFixed(1)),
         monthly_leads: monthlyLeads,
         recent_leads: recent_leads
+    };
+}
+
+function getEmptyStats(): DashboardStats {
+    return {
+        total_leads: 0,
+        new_leads: 0,
+        closed_leads: 0,
+        conversion_rate: 0,
+        monthly_leads: [],
+        recent_leads: []
     };
 }
