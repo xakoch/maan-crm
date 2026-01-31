@@ -82,7 +82,7 @@ export function DealerForm({ initialData }: DealerFormProps) {
     const [createdCredentials, setCreatedCredentials] = useState<{ username: string, password: string } | null>(null)
 
     const form = useForm<DealerFormValues>({
-        resolver: zodResolver(initialData ? baseSchema : createSchema),
+        resolver: zodResolver(initialData ? baseSchema : createSchema) as any,
         defaultValues: initialData ? {
             ...initialData,
             username: "", // Not used in edit
