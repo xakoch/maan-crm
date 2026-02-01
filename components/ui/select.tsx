@@ -41,6 +41,9 @@ function SelectTrigger({
         className
       )}
       {...props}
+      // Fix for mobile: prevent Sheet/Dialog from capturing the touch/click
+      onClick={(e) => e.stopPropagation()}
+      onTouchStart={(e) => e.stopPropagation()}
     >
       {children}
       <SelectPrimitive.Icon asChild>
