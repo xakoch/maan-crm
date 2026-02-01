@@ -333,7 +333,7 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
     }
 
     return (
-        <Card className="w-full max-w-lg mx-auto backdrop-blur-3xl bg-white/70 dark:bg-black/40 shadow-2xl border-white/20 dark:border-white/10 ring-1 ring-white/30 dark:ring-white/10 py-6 !overflow-visible">
+        <Card className="w-full max-w-lg mx-auto bg-white dark:bg-zinc-900 shadow-2xl border-white/20 dark:border-white/10 ring-1 ring-white/30 dark:ring-white/10 py-6 !overflow-visible">
             <CardHeader className="!overflow-visible">
                 <CardTitle className="text-3xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
                     {t.title}
