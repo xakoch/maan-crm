@@ -136,3 +136,8 @@
     cursor: pointer;
   }
 }
+
+/* Fix for Radix UI select popover appearing under Sheet/Dialog */
+[data-radix-popper-content-wrapper] {
+  z-index: 101 !important;
+}
