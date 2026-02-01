@@ -333,8 +333,8 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
     }
 
     return (
-        <Card className="w-full max-w-lg mx-auto backdrop-blur-3xl bg-white/70 dark:bg-black/40 shadow-2xl border-white/20 dark:border-white/10 ring-1 ring-white/30 dark:ring-white/10 py-6">
-            <CardHeader>
+        <Card className="w-full max-w-lg mx-auto backdrop-blur-3xl bg-white/70 dark:bg-black/40 shadow-2xl border-white/20 dark:border-white/10 ring-1 ring-white/30 dark:ring-white/10 py-6 !overflow-visible">
+            <CardHeader className="!overflow-visible">
                 <CardTitle className="text-3xl font-bold text-center bg-clip-text text-transparent bg-gradient-to-r from-blue-600 to-indigo-600 dark:from-blue-400 dark:to-indigo-400">
                     {t.title}
                 </CardTitle>
@@ -342,7 +342,7 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                     {t.subtitle}
                 </CardDescription>
             </CardHeader>
-            <CardContent>
+            <CardContent className="!overflow-visible">
                 <Form {...form}>
                     <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
                         <FormField
