@@ -20,13 +20,7 @@ import {
     CardHeader,
     CardTitle,
 } from "@/components/ui/card";
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select";
+import { ChevronDown } from "lucide-react";
 import { createClient } from "../../lib/supabase/client";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
@@ -414,28 +408,27 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 render={({ field }) => (
                                     <FormItem>
                                         <FormLabel className="text-foreground/80">{t.cityLabel}</FormLabel>
-                                        <Select
-                                            onValueChange={handleCityChange}
-                                            value={selectedCity}
-                                            disabled={isLoading}
-                                        >
-                                            <FormControl>
-                                                <SelectTrigger className="w-full bg-white/50 dark:bg-black/20 border-black/5 dark:border-white/10 focus:ring-2 focus:ring-indigo-500 transition-all !h-14 text-lg">
-                                                    <SelectValue placeholder={isLoading ? t.loading : t.cityPlaceholder} />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {availableCities.map((city) => (
-                                                    <SelectItem
-                                                        key={city}
-                                                        value={city}
-                                                        className="text-lg py-3 cursor-pointer"
-                                                    >
-                                                        {city}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                        <FormControl>
+                                            <div className="relative">
+                                                <select
+                                                    className="w-full h-14 bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-md px-3 py-2 text-lg focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
+                                                    disabled={isLoading}
+                                                    {...field}
+                                                    onChange={(e) => {
+                                                        field.onChange(e);
+                                                        handleCityChange(e.target.value);
+                                                    }}
+                                                >
+                                                    <option value="" disabled className="text-muted-foreground">{isLoading ? t.loading : t.cityPlaceholder}</option>
+                                                    {availableCities.map((city) => (
+                                                        <option key={city} value={city} className="text-black dark:text-white bg-white dark:bg-zinc-900">
+                                                            {city}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-5 h-4 w-4 opacity-50 pointer-events-none" />
+                                            </div>
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
@@ -447,36 +440,30 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 render={({ field }) => (
                                     <FormItem className="w-full">
                                         <FormLabel className="text-foreground/80">{t.regionLabel}</FormLabel>
-                                        <Select
-                                            onValueChange={field.onChange}
-                                            value={field.value}
-                                            disabled={!selectedCity || availableRegions.length === 0}
-                                        >
-                                            <FormControl>
-                                                <SelectTrigger className="w-full bg-white/50 dark:bg-black/20 border-black/5 dark:border-white/10 focus:ring-2 focus:ring-indigo-500 transition-all !h-14 text-lg">
-                                                    <SelectValue
-                                                        placeholder={
-                                                            !selectedCity
-                                                                ? t.cityPlaceholder
-                                                                : availableRegions.length === 0
-                                                                    ? t.noRegionsNeeded
-                                                                    : t.regionPlaceholder
+                                        <FormControl>
+                                            <div className="relative">
+                                                <select
+                                                    className="w-full h-14 bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-md px-3 py-2 text-lg focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
+                                                    disabled={!selectedCity || availableRegions.length === 0}
+                                                    {...field}
+                                                >
+                                                    <option value="" disabled className="text-muted-foreground">
+                                                        {!selectedCity
+                                                            ? t.cityPlaceholder
+                                                            : availableRegions.length === 0
+                                                                ? t.noRegionsNeeded
+                                                                : t.regionPlaceholder
                                                         }
-                                                    />
-                                                </SelectTrigger>
-                                            </FormControl>
-                                            <SelectContent>
-                                                {availableRegions.map((region) => (
-                                                    <SelectItem
-                                                        key={region}
-                                                        value={region}
-                                                        className="text-lg py-3 cursor-pointer"
-                                                    >
-                                                        {region}
-                                                    </SelectItem>
-                                                ))}
-                                            </SelectContent>
-                                        </Select>
+                                                    </option>
+                                                    {availableRegions.map((region) => (
+                                                        <option key={region} value={region} className="text-black dark:text-white bg-white dark:bg-zinc-900">
+                                                            {region}
+                                                        </option>
+                                                    ))}
+                                                </select>
+                                                <ChevronDown className="absolute right-3 top-5 h-4 w-4 opacity-50 pointer-events-none" />
+                                            </div>
+                                        </FormControl>
                                         <FormMessage />
                                     </FormItem>
                                 )}
