@@ -115,6 +115,8 @@ export interface Database {
                     created_at: string
                     updated_at: string
                     closed_at: string | null
+                    company_name: string | null
+                    lead_type: 'person' | 'organization'
                 }
                 Insert: {
                     id?: string
@@ -133,6 +135,8 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                     closed_at?: string | null
+                    company_name?: string | null
+                    lead_type?: 'person' | 'organization'
                 }
                 Update: {
                     id?: string
@@ -151,6 +155,8 @@ export interface Database {
                     created_at?: string
                     updated_at?: string
                     closed_at?: string | null
+                    company_name?: string | null
+                    lead_type?: 'person' | 'organization'
                 }
                 Relationships: [
                     {

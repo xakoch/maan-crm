@@ -29,6 +29,8 @@ type Lead = {
     tenants: { name: string } | null
     managers: { full_name: string } | null
     source?: string | null
+    company_name?: string | null
+    lead_type?: 'person' | 'organization'
 }
 
 export const columns: ColumnDef<Lead>[] = [
@@ -75,10 +77,18 @@ export const columns: ColumnDef<Lead>[] = [
             return (
                 <Link
                     href={`/dashboard/leads/${lead.id}`}
-                    className="flex items-center gap-2 font-medium text-blue-600 hover:underline dark:text-blue-400"
+                    className="flex flex-col gap-0.5 group"
                 >
-                    <User className="h-3 w-3 text-muted-foreground" />
-                    {lead.name}
+                    {lead.company_name && (
+                        <div className="flex items-center gap-2 font-semibold text-blue-600 group-hover:underline dark:text-blue-400">
+                            <Building2 className="h-3 w-3 text-muted-foreground shrink-0" />
+                            <span>{lead.company_name}</span>
+                        </div>
+                    )}
+                    <div className={`flex items-center gap-2 ${lead.company_name ? "text-sm text-muted-foreground" : "font-medium text-blue-600 group-hover:underline dark:text-blue-400"}`}>
+                        <User className="h-3 w-3 text-muted-foreground shrink-0" />
+                        {lead.name}
+                    </div>
                 </Link>
             )
         }

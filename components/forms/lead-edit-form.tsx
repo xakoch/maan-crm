@@ -41,6 +41,7 @@ import {
     AlertDialogTitle,
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 
 const leadEditSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),
@@ -53,7 +54,9 @@ const leadEditSchema = z.object({
     status: z.enum(['new', 'processing', 'closed', 'rejected']),
     comment: z.string().optional(),
     rejection_reason: z.string().optional(),
-    conversion_value: z.number().optional()
+    conversion_value: z.number().optional(),
+    lead_type: z.enum(['person', 'organization']),
+    company_name: z.string().optional(),
 })
 
 type LeadEditValues = z.infer<typeof leadEditSchema>
@@ -106,7 +109,9 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             status: lead.status || "new",
             comment: lead.comment || "",
             rejection_reason: lead.rejection_reason || "",
-            conversion_value: lead.conversion_value || 0
+            conversion_value: lead.conversion_value || 0,
+            lead_type: lead.lead_type || "person",
+            company_name: lead.company_name || "",
         },
     })
 
@@ -114,6 +119,7 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
     const selectedTenantId = form.watch("tenant_id")
     const selectedStatus = form.watch("status")
     const selectedRegion = form.watch("region")
+    const leadType = form.watch("lead_type")
 
     // Filtered lists
     const availableCities = useMemo(() => {
@@ -209,7 +215,9 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
                 rejection_reason: values.status === 'rejected' ? values.rejection_reason : null,
                 conversion_value: values.status === 'closed' ? values.conversion_value : null,
                 closed_at: values.status === 'closed' && lead.status !== 'closed' ? new Date().toISOString() : (values.status !== 'closed' ? null : lead.closed_at),
-                updated_at: new Date().toISOString()
+                updated_at: new Date().toISOString(),
+                lead_type: values.lead_type,
+                company_name: values.company_name || null
             }
 
             const { error } = await supabase

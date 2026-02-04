@@ -21,10 +21,10 @@ import {
     CardTitle,
 } from "@/components/ui/card";
 import { ChevronDown } from "lucide-react";
-import { createClient } from "../../lib/supabase/client";
 import { toast } from "sonner";
 import { useState, useEffect, useMemo } from "react";
 import { getDealerLocationsAction } from "@/app/actions/get-locations";
+import { submitPublicLead } from "@/app/actions/public-lead";
 
 interface DealerLocation {
     city: string;
@@ -166,85 +166,10 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsSubmitting(true);
         try {
-            const supabase = createClient();
+            const result = await submitPublicLead(values);
 
-            // Find the dealer for this city/region to auto-assign
-            const matchingDealer = dealerLocations.find(
-                d => d.city === values.city &&
-                    (!values.region || d.region === values.region)
-            );
-
-            // Get dealer's tenant_id
-            let tenantId = null;
-            if (matchingDealer) {
-                // Here we still use client supabase because usually 'tenants' select is public or we rely on logic.
-                // If this fails due to RLS, we should move dealer finding to Server Action too.
-                // But for now let's hope finding 'tenant_id' by city is okay or user is okay with simple submission.
-                // ACTUALLY: We already have 'dealerLocations' loaded safely. We need tenant_id.
-                // The loaded locations DO NOT have IDs.
-                // So we need to fetch tenant ID safely.
-
-                // Let's postpone ID fetching to backend or assume it will work (if anon select is allowed).
-                // If anon select is NOT allowed, this part will fail.
-                // Ideally, lead creation should be a Server Action too, handling everything securely.
-
-                // For now, let's just try to fetch.
-                const { data: dealer } = await supabase
-                    .from("tenants")
-                    .select("id")
-                    .eq("city", values.city)
-                    .eq("status", "active")
-                    .maybeSingle();
-
-                if (dealer) {
-                    tenantId = dealer.id;
-                }
-            }
-
-            // ... (rest of logic is kept simple for now, can be refactored to SA later if needed)
-
-            // Find managers logic... (omitted detailed complexity for safety, keeping original flow but simplifying assignment if necessary)
-            // Ideally we should move ALL submission logic to a Server Action "submitLeadAction".
-            // But let's stick to fixing the dropdown first.
-
-            // Re-using the original extensive logic for manager assignment:
-            let assignedManagerId = null;
-            if (tenantId) {
-                const { data: managers } = await supabase
-                    .from("users")
-                    .select("id")
-                    .eq("tenant_id", tenantId)
-                    .eq("role", "manager")
-                    .eq("is_active", true);
-
-                if (managers && managers.length > 0) {
-                    // Simple random assignment for now to save lines/complexity in this rewrite or keep original logic if it fits
-                    // Let's keep it simple: random one
-                    assignedManagerId = managers[Math.floor(Math.random() * managers.length)].id;
-                }
-            }
-
-            const { data, error } = await supabase.from("leads").insert({
-                name: values.name,
-                phone: values.phone,
-                city: values.city,
-                region: values.region || null,
-                tenant_id: tenantId,
-                assigned_manager_id: assignedManagerId,
-                source: 'website',
-                status: assignedManagerId ? 'processing' : 'new'
-            })
-                .select()
-                .single();
-
-            if (error) throw error;
-
-            if (data) {
-                await fetch('/api/leads/notify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ leadId: data.id })
-                }).catch(e => console.error('Error notifying:', e));
+            if (!result.success) {
+                throw new Error(result.error);
             }
 
             setIsSuccess(true);

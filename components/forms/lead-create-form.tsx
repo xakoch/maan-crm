@@ -28,6 +28,8 @@ import {
 } from "@/components/ui/select"
 import { createClient } from "../../lib/supabase/client"
 import { Textarea } from "@/components/ui/textarea"
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { createLead } from "@/app/dashboard/leads/actions"
 
 const leadCreateSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),
@@ -39,6 +41,8 @@ const leadCreateSchema = z.object({
     source: z.string().min(1, "Источник обязателен"),
     status: z.enum(['new', 'processing', 'closed', 'rejected']),
     comment: z.string().optional(),
+    lead_type: z.enum(['person', 'organization']),
+    company_name: z.string().optional(),
 })
 
 type LeadCreateValues = z.infer<typeof leadCreateSchema>
@@ -90,13 +94,16 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
             assigned_manager_id: "",
             source: "manual",
             status: "new",
-            comment: ""
+            comment: "",
+            lead_type: "person",
+            company_name: "",
         },
     })
 
     const selectedCity = form.watch("city")
     const selectedTenantId = form.watch("tenant_id")
     const selectedRegion = form.watch("region")
+    const leadType = form.watch("lead_type")
 
     // Filtered lists
     const availableCities = useMemo(() => {
@@ -182,42 +189,10 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
     async function onSubmit(values: LeadCreateValues) {
         setIsSubmitting(true)
         try {
-            const supabase = createClient()
-            const { data: { user } } = await supabase.auth.getUser()
+            const res = await createLead(values)
 
-            const { data, error } = await supabase
-                .from("leads")
-                .insert([{
-                    name: values.name,
-                    phone: values.phone,
-                    city: values.city,
-                    region: values.region || null,
-                    tenant_id: values.tenant_id,
-                    assigned_manager_id: values.assigned_manager_id || null,
-                    source: values.source,
-                    status: values.status,
-                    comment: values.comment || null
-                }])
-                .select()
-                .single()
-
-            if (error) throw error
-
-            // Create initial history record
-            await supabase.from('lead_history').insert({
-                lead_id: data.id,
-                changed_by: user?.id,
-                new_status: values.status,
-                comment: 'Лид создан'
-            })
-
-            // Trigger notification
-            if (data) {
-                fetch('/api/leads/notify', {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({ leadId: data.id })
-                }).catch(e => console.error('Error notifying:', e));
+            if (!res.success) {
+                throw new Error(res.error)
             }
 
             toast.success("Лид успешно создан")
@@ -250,12 +225,40 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="grid gap-4 md:grid-cols-2">
+                                <div className="col-span-2">
+                                    <Tabs value={leadType} onValueChange={(v) => form.setValue("lead_type", v as "person" | "organization")} className="w-full">
+                                        <TabsList className="grid w-full grid-cols-2 mb-4">
+                                            <TabsTrigger value="person">Физическое лицо</TabsTrigger>
+                                            <TabsTrigger value="organization">Организация</TabsTrigger>
+                                        </TabsList>
+                                    </Tabs>
+                                </div>
+
+                                {leadType === 'organization' && (
+                                    <FormField
+                                        control={form.control}
+                                        name="company_name"
+                                        render={({ field }) => (
+                                            <FormItem className="col-span-2">
+                                                <FormLabel>Название организации</FormLabel>
+                                                <FormControl>
+                                                    <div className="relative">
+                                                        <Building2 className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                                                        <Input className="pl-9" placeholder="ООО 'Пример'" {...field} />
+                                                    </div>
+                                                </FormControl>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
+
                                 <FormField
                                     control={form.control}
                                     name="name"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>Имя клиента</FormLabel>
+                                            <FormLabel>{leadType === 'organization' ? "Контактное лицо" : "Имя клиента"}</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
                                                     <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
