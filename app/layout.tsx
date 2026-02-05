@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "CRM system for Maan Production",
 };
 
+import YandexMetrika from "@/components/yandex-metrika";
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -37,6 +39,7 @@ export default function RootLayout({
         >
           {children}
           <Toaster />
+          <YandexMetrika />
         </ThemeProvider>
       </body>
     </html>
