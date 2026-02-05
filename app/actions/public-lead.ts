@@ -2,7 +2,7 @@
 
 import { createClient } from "@supabase/supabase-js"
 import { Database } from "@/types/database.types"
-import { sendLeadNotification } from "@/lib/telegram/notifications"
+import { sendLeadNotification, sendGroupLeadNotification } from "@/lib/telegram/notifications"
 
 export async function submitPublicLead(formData: {
     name: string
@@ -17,7 +17,7 @@ export async function submitPublicLead(formData: {
     )
 
     try {
-        // 2. Find Tenant (Dealer)
+
         let tenantId = null
 
         // Fetch all potential tenants for this city to perform matching logic
@@ -95,6 +95,14 @@ export async function submitPublicLead(formData: {
         })
 
         // 6. Notify Telegram
+
+        // 6a. Send to Group
+        const telegramGroupId = process.env.TELEGRAM_GROUP_ID;
+        if (telegramGroupId) {
+            await sendGroupLeadNotification(lead, telegramGroupId);
+        }
+
+        // 6b. Send to Manager
         if (managerToSend) {
             await sendLeadNotification(lead, managerToSend, supabase)
         }
