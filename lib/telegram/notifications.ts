@@ -81,3 +81,39 @@ function escapeMarkdown(text: string): string {
     // Only escape: _ * [ ] ( ) ~ ` > #
     return text.replace(/[_*[\]()~`>#]/g, '\\$&');
 }
+
+// Send notification about new lead to a specific group chat
+export async function sendGroupLeadNotification(
+    lead: Lead,
+    groupChatId: string
+): Promise<boolean | any> {
+    const sourceLabels: Record<string, string> = {
+        website: "🌐 Сайт",
+        instagram: "📸 Instagram",
+        facebook: "📘 Facebook",
+        manual: "✍️ Ручной ввод",
+        other: "📋 Другое"
+    };
+
+    const message = `
+🔔 *Новая заявка!*
+
+👤 *Имя:* ${escapeMarkdown(lead.name)}
+📱 *Телефон:* ${escapeMarkdown(lead.phone)}
+📍 *Регион:* ${escapeMarkdown(lead.city || lead.region || 'Не указан')}
+`.trim();
+
+    // Note: Inline keyboards might not be suitable for group chats if the action is specific to a user, 
+    // but a "View Lead" button could work. For now, simple text message.
+
+    try {
+        await sendMessage(groupChatId, message, {
+            parse_mode: "Markdown"
+        });
+
+        return true;
+    } catch (error: any) {
+        console.error("Error sending group lead notification:", error);
+        return { message: error?.message, stack: error?.stack };
+    }
+}

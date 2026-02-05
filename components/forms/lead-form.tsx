@@ -22,14 +22,59 @@ import {
 } from "@/components/ui/card";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { useState, useEffect, useMemo } from "react";
-import { getDealerLocationsAction } from "@/app/actions/get-locations";
+import { useState } from "react";
 import { submitPublicLead } from "@/app/actions/public-lead";
 
-interface DealerLocation {
-    city: string;
-    region: string | null;
-}
+// Static Data
+const ACTIVE_REGIONS_RU = [
+    "Ташкент (город)",
+    "Ташкентская область",
+    "Кашкадарья",
+    "Наманган",
+    "Самарканд",
+    "Джизак",
+    "Сурхандарья"
+] as const;
+
+const ACTIVE_REGIONS_UZ = [
+    "Toshkent shahar",
+    "Toshkent viloyat",
+    "Qashqadaryo",
+    "Namangan",
+    "Samarqand",
+    "Jizzax",
+    "Surxandaryo"
+] as const;
+
+const TASHKENT_DISTRICTS_RU = [
+    "Бектемир",
+    "Чиланзар",
+    "Мирабад",
+    "Мирзо-Улугбек",
+    "Алмазар",
+    "Сергели",
+    "Шайхантахур",
+    "Учтепа",
+    "Яккасарай",
+    "Яшнабад",
+    "Юнусабад",
+    "Янгихаёт"
+] as const;
+
+const TASHKENT_DISTRICTS_UZ = [
+    "Bektemir",
+    "Chilonzor",
+    "Mirobod",
+    "Mirzo Ulug'bek",
+    "Olmazor",
+    "Sergeli",
+    "Shayxontohur",
+    "Uchtepa",
+    "Yakkasaroy",
+    "Yashnobod",
+    "Yunusobod",
+    "Yangihayot"
+] as const;
 
 const translations = {
     ru: {
@@ -40,7 +85,7 @@ const translations = {
         phoneLabel: "Телефон",
         phonePlaceholder: "+998 90 123 45 67",
         cityLabel: "Город / Область",
-        cityPlaceholder: "Выберите город",
+        cityPlaceholder: "Выберите регион",
         regionLabel: "Район",
         regionPlaceholder: "Выберите район",
         submitButton: "Отправить заявку",
@@ -50,7 +95,7 @@ const translations = {
         sendMore: "Отправить еще одну заявку",
         validationName: "Имя должно содержать минимум 2 символа",
         validationPhone: "Введите корректный номер телефона",
-        validationCity: "Выберите город",
+        validationCity: "Выберите регион",
         validationRegion: "Выберите район",
         noRegionsNeeded: "Район не требуется",
         loading: "Загрузка...",
@@ -63,7 +108,7 @@ const translations = {
         phoneLabel: "Telefon raqam",
         phonePlaceholder: "+998 90 123 45 67",
         cityLabel: "Shahar / Viloyat",
-        cityPlaceholder: "Shaharni tanlang",
+        cityPlaceholder: "Hududni tanlang",
         regionLabel: "Tuman",
         regionPlaceholder: "Tumanni tanlang",
         submitButton: "Ariza yuborish",
@@ -73,7 +118,7 @@ const translations = {
         sendMore: "Yana bir ariza yuborish",
         validationName: "Ism kamida 2 ta belgidan iborat bo'lishi kerak",
         validationPhone: "To'g'ri telefon raqamini kiriting",
-        validationCity: "Shaharni tanlang",
+        validationCity: "Hududni tanlang",
         validationRegion: "Tumanni tanlang",
         noRegionsNeeded: "Tuman talab qilinmaydi",
         loading: "Yuklanmoqda...",
@@ -86,55 +131,18 @@ interface LeadFormProps {
 
 export default function LeadForm({ language = 'ru' }: LeadFormProps) {
     const t = translations[language];
-    const [dealerLocations, setDealerLocations] = useState<DealerLocation[]>([]);
-    const [isLoading, setIsLoading] = useState(true);
     const [selectedCity, setSelectedCity] = useState("");
+    const [isSubmitting, setIsSubmitting] = useState(false);
+    const [isSuccess, setIsSuccess] = useState(false);
 
-    // Fetch available cities and regions from active dealers via Server Action
-    useEffect(() => {
-        async function fetchDealerLocations() {
-            setIsLoading(true);
-            try {
-                const data = await getDealerLocationsAction();
-                setDealerLocations(data || []);
-            } catch (error) {
-                console.error("Error fetching dealer locations:", error);
-                // Don't show toast error for public form to avoid scaring users, just log
-            } finally {
-                setIsLoading(false);
-            }
-        }
+    // Select correct data based on language
+    const ACTIVE_REGIONS = language === 'ru' ? ACTIVE_REGIONS_RU : ACTIVE_REGIONS_UZ;
+    const TASHKENT_DISTRICTS = language === 'ru' ? TASHKENT_DISTRICTS_RU : TASHKENT_DISTRICTS_UZ;
 
-        fetchDealerLocations();
-    }, []);
-
-    // Get unique cities from dealers
-    const availableCities = useMemo(() => {
-        const cities = [...new Set(dealerLocations.map(d => d.city))];
-        return cities.sort((a, b) => {
-            // Priority: Tashkent, Tashkent Region, then others Alphabetically
-            const priorityA = a.includes("Tashkent") || a.includes("Ташкент")
-                ? (a === "Tashkent" || a === "Ташкент" ? 2 : 1)
-                : 0;
-            const priorityB = b.includes("Tashkent") || b.includes("Ташкент")
-                ? (b === "Tashkent" || b === "Ташкент" ? 2 : 1)
-                : 0;
-
-            if (priorityA > priorityB) return -1;
-            if (priorityA < priorityB) return 1;
-
-            return a.localeCompare(b);
-        });
-    }, [dealerLocations]);
-
-    // Get regions for selected city
-    const availableRegions = useMemo(() => {
-        if (!selectedCity) return [];
-        const regions = dealerLocations
-            .filter(d => d.city === selectedCity && d.region)
-            .map(d => d.region as string);
-        return [...new Set(regions)].sort();
-    }, [dealerLocations, selectedCity]);
+    // Filter districts based on city selection
+    // Using string matching for "Toshkent shahar" in UZ or "Ташкент (город)" in RU
+    const isTashkent = selectedCity === "Toshkent shahar" || selectedCity === "Ташкент (город)";
+    const availableRegions = isTashkent ? TASHKENT_DISTRICTS : [];
 
     const formSchema = z.object({
         name: z.string().min(2, t.validationName),
@@ -142,9 +150,6 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
         city: z.string().min(1, t.validationCity),
         region: z.string().optional(),
     });
-
-    const [isSubmitting, setIsSubmitting] = useState(false);
-    const [isSuccess, setIsSuccess] = useState(false);
 
     const form = useForm<z.infer<typeof formSchema>>({
         resolver: zodResolver(formSchema),
@@ -165,8 +170,16 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
 
     async function onSubmit(values: z.infer<typeof formSchema>) {
         setIsSubmitting(true);
+        const isTashkentSubmit = values.city === "Toshkent shahar" || values.city === "Ташкент (город)";
+
         try {
-            const result = await submitPublicLead(values);
+            // Clean up region if not present in available list (e.g. if switched away from Tashkent)
+            const submissionData = {
+                ...values,
+                region: (isTashkentSubmit && values.region) ? values.region : undefined
+            };
+
+            const result = await submitPublicLead(submissionData);
 
             if (!result.success) {
                 throw new Error(result.error);
@@ -285,21 +298,20 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 control={form.control}
                                 name="city"
                                 render={({ field }) => (
-                                    <FormItem>
+                                    <FormItem className={availableRegions.length > 0 ? "" : "md:col-span-2"}>
                                         <FormLabel className="text-foreground/80">{t.cityLabel}</FormLabel>
                                         <FormControl>
                                             <div className="relative">
                                                 <select
                                                     className="w-full h-14 bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-md px-3 py-2 text-lg focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
-                                                    disabled={isLoading}
                                                     {...field}
                                                     onChange={(e) => {
                                                         field.onChange(e);
                                                         handleCityChange(e.target.value);
                                                     }}
                                                 >
-                                                    <option value="" disabled className="text-muted-foreground">{isLoading ? t.loading : t.cityPlaceholder}</option>
-                                                    {availableCities.map((city) => (
+                                                    <option value="" disabled className="text-muted-foreground">{t.cityPlaceholder}</option>
+                                                    {ACTIVE_REGIONS.map((city) => (
                                                         <option key={city} value={city} className="text-black dark:text-white bg-white dark:bg-zinc-900">
                                                             {city}
                                                         </option>
@@ -313,46 +325,42 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                                 )}
                             />
 
-                            <FormField
-                                control={form.control}
-                                name="region"
-                                render={({ field }) => (
-                                    <FormItem className="w-full">
-                                        <FormLabel className="text-foreground/80">{t.regionLabel}</FormLabel>
-                                        <FormControl>
-                                            <div className="relative">
-                                                <select
-                                                    className="w-full h-14 bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-md px-3 py-2 text-lg focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
-                                                    disabled={!selectedCity || availableRegions.length === 0}
-                                                    {...field}
-                                                >
-                                                    <option value="" disabled className="text-muted-foreground">
-                                                        {!selectedCity
-                                                            ? t.cityPlaceholder
-                                                            : availableRegions.length === 0
-                                                                ? t.noRegionsNeeded
-                                                                : t.regionPlaceholder
-                                                        }
-                                                    </option>
-                                                    {availableRegions.map((region) => (
-                                                        <option key={region} value={region} className="text-black dark:text-white bg-white dark:bg-zinc-900">
-                                                            {region}
+                            {availableRegions.length > 0 && (
+                                <FormField
+                                    control={form.control}
+                                    name="region"
+                                    render={({ field }) => (
+                                        <FormItem className="w-full">
+                                            <FormLabel className="text-foreground/80">{t.regionLabel}</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <select
+                                                        className="w-full h-14 bg-white/50 dark:bg-black/20 border border-black/5 dark:border-white/10 rounded-md px-3 py-2 text-lg focus:ring-2 focus:ring-indigo-500 appearance-none disabled:opacity-50"
+                                                        {...field}
+                                                    >
+                                                        <option value="" disabled className="text-muted-foreground">
+                                                            {t.regionPlaceholder}
                                                         </option>
-                                                    ))}
-                                                </select>
-                                                <ChevronDown className="absolute right-3 top-5 h-4 w-4 opacity-50 pointer-events-none" />
-                                            </div>
-                                        </FormControl>
-                                        <FormMessage />
-                                    </FormItem>
-                                )}
-                            />
+                                                        {availableRegions.map((region) => (
+                                                            <option key={region} value={region} className="text-black dark:text-white bg-white dark:bg-zinc-900">
+                                                                {region}
+                                                            </option>
+                                                        ))}
+                                                    </select>
+                                                    <ChevronDown className="absolute right-3 top-5 h-4 w-4 opacity-50 pointer-events-none" />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            )}
                         </div>
 
                         <Button
                             type="submit"
                             className="w-full h-14 text-lg font-medium bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 transition-all shadow-lg hover:shadow-indigo-500/30"
-                            disabled={isSubmitting || isLoading}
+                            disabled={isSubmitting}
                         >
                             {isSubmitting ? (
                                 <div className="flex items-center gap-2">

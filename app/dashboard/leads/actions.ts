@@ -5,7 +5,7 @@ import { createClient } from "@/lib/supabase/server"
 import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { Database } from "@/types/database.types"
-import { sendLeadNotification } from "@/lib/telegram/notifications"
+import { sendLeadNotification, sendGroupLeadNotification } from "@/lib/telegram/notifications"
 
 type LeadStatus = Database['public']['Tables']['leads']['Row']['status']
 
@@ -22,12 +22,13 @@ export async function createLead(values: any) {
                 phone: values.phone,
                 city: values.city,
                 region: values.region || null,
-                tenant_id: values.tenant_id,
-                source: values.source,
-                status: values.status,
+                tenant_id: values.tenant_id || null, // Ensure explicitly null if undefined/empty
+                source: values.source || 'manual',
+                status: values.status || 'new',
                 assigned_manager_id: values.assigned_manager_id || null,
                 comment: values.comment || null,
-                company_name: values.company_name || null
+                company_name: values.company_name || null,
+                lead_type: values.lead_type || 'person'
             }])
             .select()
             .single()
@@ -42,18 +43,24 @@ export async function createLead(values: any) {
             await supabase.from('lead_history').insert({
                 lead_id: lead.id,
                 changed_by: user?.id,
-                new_status: values.status,
+                new_status: lead.status,
                 comment: 'Лид создан'
             })
         }
 
         // 2. Handle Notification & Assignment
-        // We use a service role client for this part to ensure permissions
-        // and to match the logic from the API route.
         const adminSupabase = createSupabaseClient<Database>(
             process.env.NEXT_PUBLIC_SUPABASE_URL!,
             process.env.SUPABASE_SERVICE_ROLE_KEY!
         )
+
+        // 2a. Send to Telegram Group (Priority for Temporary Flow)
+        const telegramGroupId = process.env.TELEGRAM_GROUP_ID;
+        if (telegramGroupId) {
+            await sendGroupLeadNotification(lead, telegramGroupId);
+        } else {
+            console.log("TELEGRAM_GROUP_ID not set, skipping group notification");
+        }
 
         let managerToSend = null;
 

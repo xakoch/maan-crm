@@ -3,9 +3,9 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, User, Phone, MapPin, Building2, Globe, Activity, MessageSquare, UserCheck } from "lucide-react"
+import { Loader2, User, Phone, MapPin, MessageSquare } from "lucide-react"
 import { useRouter } from "next/navigation"
-import { useState, useEffect, useMemo } from "react"
+import { useState } from "react"
 import { toast } from "sonner"
 
 import { Button } from "@/components/ui/button"
@@ -26,23 +26,63 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
-import { createClient } from "../../lib/supabase/client"
 import { Textarea } from "@/components/ui/textarea"
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { createLead } from "@/app/dashboard/leads/actions"
+
+const MAIN_REGIONS = [
+    "Toshkent shahar",
+    "Toshkent viloyat",
+    "Samarqand",
+    "Buxoro",
+    "Farg'ona",
+    "Namangan",
+    "Andijon",
+    "Qashqadaryo",
+    "Surxandaryo",
+    "Xorazm",
+    "Navoiy",
+    "Jizzax",
+    "Sirdaryo",
+    "Qoraqalpog'iston Respublikasi"
+] as const;
+
+// Districts for Toshkent shahar
+const TASHKENT_DISTRICTS = [
+    "Bektemir",
+    "Chilonzor",
+    "Mirobod",
+    "Mirzo Ulug'bek",
+    "Olmazor",
+    "Sergeli",
+    "Shayxontohur",
+    "Uchtepa",
+    "Yakkasaroy",
+    "Yashnobod",
+    "Yunusobod",
+    "Yangihayot"
+] as const;
+
+// Temporary simplified list for user request (specific regions mentioned)
+const ACTIVE_REGIONS = [
+    "Toshkent shahar",
+    "Toshkent viloyat",
+    "Qashqadaryo",
+    "Namangan",
+    "Samarqand",
+    "Jizzax",
+    "Surxandaryo"
+] as const;
 
 const leadCreateSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),
     phone: z.string().min(9, "Телефон обязателен"),
-    city: z.string().min(1, "Город обязателен"),
-    region: z.string().optional(),
-    tenant_id: z.string().min(1, "Выберите дилера"),
-    assigned_manager_id: z.string().optional(),
-    source: z.string().min(1, "Источник обязателен"),
-    status: z.enum(['new', 'processing', 'closed', 'rejected']),
+    city: z.string().min(1, "Выберите город/область"),
+    region: z.string().optional(), // District, optional
     comment: z.string().optional(),
-    lead_type: z.enum(['person', 'organization']),
-    company_name: z.string().optional(),
+    status: z.string(),
+    source: z.string(),
+    tenant_id: z.string().nullable().optional(),
+    assigned_manager_id: z.string().nullable().optional(),
 })
 
 type LeadCreateValues = z.infer<typeof leadCreateSchema>
@@ -51,37 +91,9 @@ interface LeadCreateFormProps {
     onSuccess?: () => void
 }
 
-interface DealerInfo {
-    id: string;
-    name: string;
-    city: string;
-    region: string | null;
-}
-
 export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
-    const [allDealers, setAllDealers] = useState<DealerInfo[]>([])
-    const [managers, setManagers] = useState<{ id: string, full_name: string, telegram_id?: number | null }[]>([])
-
-    // Fetch initial data
-    useEffect(() => {
-        async function fetchData() {
-            try {
-                const supabase = createClient()
-                const { data: dealersData } = await supabase
-                    .from('tenants')
-                    .select('id, name, city, region')
-                    .eq('status', 'active')
-                    .order('name')
-
-                if (dealersData) setAllDealers(dealersData)
-            } catch (error) {
-                console.error("Error fetching dealers:", error);
-            }
-        }
-        fetchData()
-    }, [])
 
     const form = useForm<LeadCreateValues>({
         resolver: zodResolver(leadCreateSchema),
@@ -90,112 +102,32 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
             phone: "+998",
             city: "",
             region: "",
-            tenant_id: "",
-            assigned_manager_id: "",
-            source: "manual",
-            status: "new",
             comment: "",
-            lead_type: "person",
-            company_name: "",
+            status: "new",
+            source: "manual",
+            tenant_id: null,
+            assigned_manager_id: null,
         },
     })
 
-    const selectedCity = form.watch("city")
-    const selectedTenantId = form.watch("tenant_id")
-    const selectedRegion = form.watch("region")
-    const leadType = form.watch("lead_type")
-
-    // Filtered lists
-    const availableCities = useMemo(() => {
-        return [...new Set(allDealers.map(d => d.city))].sort((a, b) => {
-            const priorityA = a.includes("Tashkent") || a.includes("Ташкент")
-                ? (a === "Tashkent" || a === "Ташкент" ? 2 : 1)
-                : 0;
-            const priorityB = b.includes("Tashkent") || b.includes("Ташкент")
-                ? (b === "Tashkent" || b === "Ташкент" ? 2 : 1)
-                : 0;
-
-            if (priorityA > priorityB) return -1;
-            if (priorityA < priorityB) return 1;
-
-            return a.localeCompare(b);
-        });
-    }, [allDealers]);
-
-    const availableRegions = useMemo(() => {
-        if (!selectedCity) return [];
-        const regions = allDealers
-            .filter(d => d.city === selectedCity && d.region)
-            .map(d => d.region as string);
-        return [...new Set(regions)].sort();
-    }, [allDealers, selectedCity]);
-
-    const filteredDealers = useMemo(() => {
-        if (!selectedCity) return [];
-        if (!selectedRegion) {
-            return allDealers.filter(d => d.city === selectedCity);
-        }
-        return allDealers.filter(d => d.city === selectedCity && d.region === selectedRegion);
-    }, [allDealers, selectedCity, selectedRegion]);
-
-    // Handlers
-    const onCityChange = (val: string) => {
-        form.setValue("city", val);
-        form.setValue("region", "");
-        form.setValue("tenant_id", "");
-        form.setValue("assigned_manager_id", "");
-    };
-
-    const onRegionChange = (val: string) => {
-        form.setValue("region", val);
-        form.setValue("tenant_id", "");
-        form.setValue("assigned_manager_id", "");
-
-        const dealersInRegion = allDealers.filter(d => d.city === selectedCity && d.region === val);
-        if (dealersInRegion.length === 1) {
-            form.setValue("tenant_id", dealersInRegion[0].id);
-        }
-    };
-
-    const onDealerChange = (val: string) => {
-        form.setValue("tenant_id", val);
-        const dealer = allDealers.find(d => d.id === val);
-        if (dealer?.region && !selectedRegion) {
-            form.setValue("region", dealer.region);
-        }
-        form.setValue("assigned_manager_id", "");
-    };
-
-    useEffect(() => {
-        async function fetchManagers() {
-            if (!selectedTenantId) {
-                setManagers([])
-                return
-            }
-
-            const supabase = createClient()
-            const { data } = await supabase
-                .from('users')
-                .select('id, full_name, telegram_id')
-                .eq('tenant_id', selectedTenantId)
-                .eq('role', 'manager')
-                .eq('is_active', true)
-
-            if (data) setManagers(data)
-        }
-        fetchManagers()
-    }, [selectedTenantId])
+    const selectedCity = form.watch("city");
 
     async function onSubmit(values: LeadCreateValues) {
         setIsSubmitting(true)
         try {
-            const res = await createLead(values)
+            // Clean up region if not Toshkent shahar
+            const submissionData = {
+                ...values,
+                region: values.city === "Toshkent shahar" ? values.region : null,
+            }
+
+            const res = await createLead(submissionData)
 
             if (!res.success) {
                 throw new Error(res.error)
             }
 
-            toast.success("Лид успешно создан")
+            toast.success("Лид успешно создан и отправлен в группу")
 
             if (onSuccess) {
                 onSuccess()
@@ -221,48 +153,20 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                             <CardHeader className="pb-3">
                                 <CardTitle className="text-base flex items-center gap-2">
                                     <User className="h-4 w-4 text-primary" />
-                                    Данные клиента
+                                    Новая заявка
                                 </CardTitle>
                             </CardHeader>
                             <CardContent className="grid gap-4 md:grid-cols-2">
-                                <div className="col-span-2">
-                                    <Tabs value={leadType} onValueChange={(v) => form.setValue("lead_type", v as "person" | "organization")} className="w-full">
-                                        <TabsList className="grid w-full grid-cols-2 mb-4">
-                                            <TabsTrigger value="person">Физическое лицо</TabsTrigger>
-                                            <TabsTrigger value="organization">Организация</TabsTrigger>
-                                        </TabsList>
-                                    </Tabs>
-                                </div>
-
-                                {leadType === 'organization' && (
-                                    <FormField
-                                        control={form.control}
-                                        name="company_name"
-                                        render={({ field }) => (
-                                            <FormItem className="col-span-2">
-                                                <FormLabel>Название организации</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Building2 className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                                        <Input className="pl-9" placeholder="ООО 'Пример'" {...field} />
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                )}
-
                                 <FormField
                                     control={form.control}
                                     name="name"
                                     render={({ field }) => (
                                         <FormItem>
-                                            <FormLabel>{leadType === 'organization' ? "Контактное лицо" : "Имя клиента"}</FormLabel>
+                                            <FormLabel>Имя клиента</FormLabel>
                                             <FormControl>
                                                 <div className="relative">
                                                     <User className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                                                    <Input className="pl-9" placeholder="Азиз" {...field} />
+                                                    <Input className="pl-9" placeholder="Имя" {...field} />
                                                 </div>
                                             </FormControl>
                                             <FormMessage />
@@ -282,7 +186,7 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                                                         className="pl-9"
                                                         placeholder="+998 90 123 45 67"
                                                         {...field}
-                                                        maxLength={17}
+                                                        maxLength={19}
                                                         onChange={(e) => {
                                                             let value = e.target.value.replace(/\D/g, "");
                                                             if (!value.startsWith("998")) value = "998" + value;
@@ -303,48 +207,31 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                                         </FormItem>
                                     )}
                                 />
+
                                 <FormField
                                     control={form.control}
                                     name="city"
                                     render={({ field }) => (
-                                        <FormItem>
+                                        <FormItem className="col-span-2 md:col-span-1">
                                             <FormLabel>Город / Область</FormLabel>
-                                            <Select onValueChange={onCityChange} value={field.value || ""}>
+                                            <Select
+                                                onValueChange={(val) => {
+                                                    field.onChange(val);
+                                                    // Reset region/district when city changes
+                                                    form.setValue("region", "");
+                                                }}
+                                                value={field.value || ""}
+                                            >
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
                                                         <div className="flex items-center gap-2">
                                                             <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder="Выберите город" />
+                                                            <SelectValue placeholder="Выберите область" />
                                                         </div>
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    {availableCities.map(city => (
-                                                        <SelectItem key={city} value={city}>{city}</SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="region"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Район</FormLabel>
-                                            <Select onValueChange={onRegionChange} value={field.value || ""} disabled={!selectedCity || availableRegions.length === 0}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <MapPin className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder={!selectedCity ? "Выберите город" : (availableRegions.length === 0 ? "Нет районов" : "Выберите район")} />
-                                                        </div>
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {availableRegions.map(region => (
+                                                    {ACTIVE_REGIONS.map(region => (
                                                         <SelectItem key={region} value={region}>{region}</SelectItem>
                                                     ))}
                                                 </SelectContent>
@@ -353,130 +240,34 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                                         </FormItem>
                                     )}
                                 />
-                            </CardContent>
-                        </Card>
 
-                        {/* Группа: Детали сделки */}
-                        <Card>
-                            <CardHeader className="pb-3">
-                                <CardTitle className="text-base flex items-center gap-2">
-                                    <Activity className="h-4 w-4 text-primary" />
-                                    Детали сделки
-                                </CardTitle>
-                            </CardHeader>
-                            <CardContent className="grid gap-4 md:grid-cols-2">
-                                <FormField
-                                    control={form.control}
-                                    name="tenant_id"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Филиал / Дилер</FormLabel>
-                                            <Select onValueChange={onDealerChange} value={field.value || ""} disabled={!selectedCity}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <Building2 className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder="Выберите дилера" />
-                                                        </div>
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {filteredDealers.map(dealer => (
-                                                        <SelectItem key={dealer.id} value={dealer.id}>
-                                                            {dealer.name}
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="source"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Источник</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <Globe className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder="Выберите источник" />
-                                                        </div>
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="manual">Ручной ввод</SelectItem>
-                                                    <SelectItem value="instagram">Instagram</SelectItem>
-                                                    <SelectItem value="facebook">Facebook</SelectItem>
-                                                    <SelectItem value="website">Сайт</SelectItem>
-                                                    <SelectItem value="other">Другое</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="assigned_manager_id"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Ответственный менеджер</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedTenantId || managers.length === 0}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <UserCheck className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder="Выберите менеджера" />
-                                                        </div>
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    {managers.map(manager => (
-                                                        <SelectItem key={manager.id} value={manager.id}>
-                                                            <div className="flex items-center justify-between w-full">
-                                                                <span>{manager.full_name}</span>
-                                                                {manager.telegram_id && (
-                                                                    <span className="ml-2 text-[10px] bg-blue-100 text-blue-600 px-1 rounded uppercase font-bold">TG</span>
-                                                                )}
+                                {selectedCity === "Toshkent shahar" && (
+                                    <FormField
+                                        control={form.control}
+                                        name="region"
+                                        render={({ field }) => (
+                                            <FormItem className="col-span-2 md:col-span-1">
+                                                <FormLabel>Район (Ташкент)</FormLabel>
+                                                <Select onValueChange={field.onChange} value={field.value || ""}>
+                                                    <FormControl>
+                                                        <SelectTrigger className="w-full">
+                                                            <div className="flex items-center gap-2">
+                                                                <MapPin className="h-4 w-4 text-muted-foreground" />
+                                                                <SelectValue placeholder="Выберите район" />
                                                             </div>
-                                                        </SelectItem>
-                                                    ))}
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
-                                <FormField
-                                    control={form.control}
-                                    name="status"
-                                    render={({ field }) => (
-                                        <FormItem>
-                                            <FormLabel>Статус заявки</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value}>
-                                                <FormControl>
-                                                    <SelectTrigger className="w-full">
-                                                        <div className="flex items-center gap-2">
-                                                            <Activity className="h-4 w-4 text-muted-foreground" />
-                                                            <SelectValue placeholder="Выберите статус" />
-                                                        </div>
-                                                    </SelectTrigger>
-                                                </FormControl>
-                                                <SelectContent>
-                                                    <SelectItem value="new">Новый</SelectItem>
-                                                    <SelectItem value="processing">В работе</SelectItem>
-                                                    <SelectItem value="closed">Закрыт</SelectItem>
-                                                    <SelectItem value="rejected">Отклонен</SelectItem>
-                                                </SelectContent>
-                                            </Select>
-                                            <FormMessage />
-                                        </FormItem>
-                                    )}
-                                />
+                                                        </SelectTrigger>
+                                                    </FormControl>
+                                                    <SelectContent>
+                                                        {TASHKENT_DISTRICTS.map(district => (
+                                                            <SelectItem key={district} value={district}>{district}</SelectItem>
+                                                        ))}
+                                                    </SelectContent>
+                                                </Select>
+                                                <FormMessage />
+                                            </FormItem>
+                                        )}
+                                    />
+                                )}
                             </CardContent>
                         </Card>
 
@@ -507,7 +298,7 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                         <div className="flex justify-start pt-4 border-t mt-8">
                             <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto">
                                 {isSubmitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                                Создать лид
+                                Создать заявку
                             </Button>
                         </div>
                     </form>
