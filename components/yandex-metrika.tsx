@@ -1,12 +1,20 @@
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, Suspense } from 'react';
 
 // Yandex Metrika ID from environment variables
 const YM_ID = process.env.NEXT_PUBLIC_YANDEX_METRIKA_ID;
 
 export default function YandexMetrika() {
+    return (
+        <Suspense fallback={null}>
+            <YandexMetrikaContent />
+        </Suspense>
+    );
+}
+
+function YandexMetrikaContent() {
     const pathname = usePathname();
     const searchParams = useSearchParams();
 
