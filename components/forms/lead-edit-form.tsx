@@ -3,13 +3,14 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, Trash2, User, Phone, MapPin, Building2, Globe, Activity, MessageSquare, Banknote, XCircle, UserCheck } from "lucide-react"
+import { Loader2, Trash2, User, Phone, MapPin, Building2, Globe, Activity, MessageSquare, Banknote, XCircle, UserCheck, Radar, Tag, Plus, ArrowRight, Clock, UserPlus, FileText } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState, useEffect, useMemo } from "react"
 import { toast } from "sonner"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 
+import { autoCreateClientFromLead } from "@/app/actions/auto-create-client"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -42,6 +43,8 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
+import { Badge } from "@/components/ui/badge"
+import { SERVICES } from "@/lib/constants"
 
 const leadEditSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),
@@ -57,6 +60,7 @@ const leadEditSchema = z.object({
     conversion_value: z.number().optional(),
     lead_type: z.enum(['person', 'organization']),
     company_name: z.string().optional(),
+    services: z.array(z.string()).optional(),
 })
 
 type LeadEditValues = z.infer<typeof leadEditSchema>
@@ -65,6 +69,7 @@ interface LeadEditFormProps {
     lead: any // Type from DB
     history?: any[]
     onSuccess?: () => void
+    backUrl?: string
 }
 
 interface DealerInfo {
@@ -74,7 +79,7 @@ interface DealerInfo {
     region: string | null;
 }
 
-export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProps) {
+export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashboard/leads" }: LeadEditFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
@@ -112,6 +117,7 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             conversion_value: lead.conversion_value || 0,
             lead_type: lead.lead_type || "person",
             company_name: lead.company_name || "",
+            services: lead.services || [],
         },
     })
 
@@ -211,13 +217,14 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             // Clean up optional fields based on status
             const updates = {
                 ...values,
-                assigned_manager_id: values.assigned_manager_id || null, // Ensure explicit null if empty
+                assigned_manager_id: values.assigned_manager_id || null,
                 rejection_reason: values.status === 'rejected' ? values.rejection_reason : null,
-                conversion_value: values.status === 'closed' ? values.conversion_value : null,
+                conversion_value: values.conversion_value || null,
                 closed_at: values.status === 'closed' && lead.status !== 'closed' ? new Date().toISOString() : (values.status !== 'closed' ? null : lead.closed_at),
                 updated_at: new Date().toISOString(),
                 lead_type: values.lead_type,
-                company_name: values.company_name || null
+                company_name: values.company_name || null,
+                services: values.services || [],
             }
 
             const { error } = await supabase
@@ -275,6 +282,14 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
                 })
             }
 
+            // Auto-create client when lead is closed
+            if (statusChanged && values.status === 'closed') {
+                const clientResult = await autoCreateClientFromLead(lead.id)
+                if (clientResult.success && !clientResult.alreadyExists) {
+                    toast.success("Клиент автоматически создан из лида")
+                }
+            }
+
             toast.success("Лид обновлен")
             router.refresh()
 
@@ -305,7 +320,7 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             if (onSuccess) {
                 onSuccess()
             } else {
-                router.push("/dashboard/leads")
+                router.push(backUrl)
                 router.refresh()
             }
         } catch (error: any) {
@@ -556,35 +571,71 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
                             </CardContent>
                         </Card>
 
-                        {/* Результат сделки */}
-                        {selectedStatus === 'closed' && (
-                            <Card className="border-green-500/30 bg-green-50/50 dark:bg-green-900/10">
-                                <CardContent className="pt-6">
-                                    <FormField
-                                        control={form.control}
-                                        name="conversion_value"
-                                        render={({ field }) => (
-                                            <FormItem>
-                                                <FormLabel>Сумма сделки (сум)</FormLabel>
-                                                <FormControl>
-                                                    <div className="relative">
-                                                        <Banknote className="absolute left-2.5 top-2.5 h-4 w-4 text-green-600" />
-                                                        <Input
-                                                            type="number"
-                                                            placeholder="0"
-                                                            className="pl-9"
-                                                            {...field}
-                                                            onChange={e => field.onChange(parseFloat(e.target.value))}
-                                                        />
-                                                    </div>
-                                                </FormControl>
-                                                <FormMessage />
-                                            </FormItem>
-                                        )}
-                                    />
-                                </CardContent>
-                            </Card>
-                        )}
+                        {/* Услуги и сумма сделки */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Tag className="h-4 w-4 text-primary" />
+                                    Услуги и сумма
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="services"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Услуги</FormLabel>
+                                            <div className="flex flex-wrap gap-2">
+                                                {SERVICES.map((service) => {
+                                                    const isSelected = field.value?.includes(service)
+                                                    return (
+                                                        <Badge
+                                                            key={service}
+                                                            variant={isSelected ? "default" : "outline"}
+                                                            className="cursor-pointer select-none transition-colors"
+                                                            onClick={() => {
+                                                                const current = field.value || []
+                                                                if (isSelected) {
+                                                                    field.onChange(current.filter((s: string) => s !== service))
+                                                                } else {
+                                                                    field.onChange([...current, service])
+                                                                }
+                                                            }}
+                                                        >
+                                                            {service}
+                                                        </Badge>
+                                                    )
+                                                })}
+                                            </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="conversion_value"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Сумма сделки (сум)</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Banknote className="absolute left-2.5 top-2.5 h-4 w-4 text-green-600" />
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="0"
+                                                        className="pl-9"
+                                                        {...field}
+                                                        onChange={e => field.onChange(parseFloat(e.target.value))}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
 
                         {selectedStatus === 'rejected' && (
                             <Card className="border-red-500/30 bg-red-50/50 dark:bg-red-900/10">
@@ -605,6 +656,82 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
                                             </FormItem>
                                         )}
                                     />
+                                </CardContent>
+                            </Card>
+                        )}
+
+                        {/* Данные отслеживания */}
+                        {(lead.utm_source || lead.utm_medium || lead.utm_campaign || lead.referrer_url || lead.device_type || lead.browser || lead.landing_page_url) && (
+                            <Card>
+                                <CardHeader className="pb-3">
+                                    <CardTitle className="text-base flex items-center gap-2">
+                                        <Radar className="h-4 w-4 text-primary" />
+                                        Данные отслеживания
+                                    </CardTitle>
+                                </CardHeader>
+                                <CardContent>
+                                    <div className="grid gap-3 md:grid-cols-2 text-sm">
+                                        {lead.utm_source && (
+                                            <div>
+                                                <span className="text-muted-foreground">UTM Source:</span>{" "}
+                                                <span className="font-medium">{lead.utm_source}</span>
+                                            </div>
+                                        )}
+                                        {lead.utm_medium && (
+                                            <div>
+                                                <span className="text-muted-foreground">UTM Medium:</span>{" "}
+                                                <span className="font-medium">{lead.utm_medium}</span>
+                                            </div>
+                                        )}
+                                        {lead.utm_campaign && (
+                                            <div>
+                                                <span className="text-muted-foreground">UTM Campaign:</span>{" "}
+                                                <span className="font-medium">{lead.utm_campaign}</span>
+                                            </div>
+                                        )}
+                                        {lead.utm_content && (
+                                            <div>
+                                                <span className="text-muted-foreground">UTM Content:</span>{" "}
+                                                <span className="font-medium">{lead.utm_content}</span>
+                                            </div>
+                                        )}
+                                        {lead.utm_term && (
+                                            <div>
+                                                <span className="text-muted-foreground">UTM Term:</span>{" "}
+                                                <span className="font-medium">{lead.utm_term}</span>
+                                            </div>
+                                        )}
+                                        {lead.referrer_url && (
+                                            <div className="md:col-span-2">
+                                                <span className="text-muted-foreground">Referrer:</span>{" "}
+                                                <span className="font-medium break-all">{lead.referrer_url}</span>
+                                            </div>
+                                        )}
+                                        {lead.landing_page_url && (
+                                            <div className="md:col-span-2">
+                                                <span className="text-muted-foreground">Landing Page:</span>{" "}
+                                                <span className="font-medium break-all">{lead.landing_page_url}</span>
+                                            </div>
+                                        )}
+                                        {lead.device_type && (
+                                            <div>
+                                                <span className="text-muted-foreground">Устройство:</span>{" "}
+                                                <span className="font-medium">{lead.device_type}</span>
+                                            </div>
+                                        )}
+                                        {lead.browser && (
+                                            <div>
+                                                <span className="text-muted-foreground">Браузер:</span>{" "}
+                                                <span className="font-medium">{lead.browser}</span>
+                                            </div>
+                                        )}
+                                        {lead.ip_address && (
+                                            <div>
+                                                <span className="text-muted-foreground">IP:</span>{" "}
+                                                <span className="font-medium">{lead.ip_address}</span>
+                                            </div>
+                                        )}
+                                    </div>
                                 </CardContent>
                             </Card>
                         )}
@@ -667,31 +794,101 @@ export function LeadEditForm({ lead, history = [], onSuccess }: LeadEditFormProp
             </div>
 
             <div className="space-y-6">
+                {/* Информация о лиде */}
+                <div className="rounded-lg border bg-card text-card-foreground shadow-sm p-6">
+                    <h3 className="font-semibold leading-none tracking-tight mb-4 flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-primary" />
+                        Информация о лиде
+                    </h3>
+                    <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Создан</span>
+                            <span className="font-medium">{format(new Date(lead.created_at), "d MMM yyyy HH:mm", { locale: ru })}</span>
+                        </div>
+                        <div className="flex justify-between">
+                            <span className="text-muted-foreground">Источник</span>
+                            <span className="font-medium">{lead.source || "—"}</span>
+                        </div>
+                        {lead.device_type && (
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Устройство</span>
+                                <span className="font-medium">{lead.device_type}</span>
+                            </div>
+                        )}
+                        {lead.browser && (
+                            <div className="flex justify-between">
+                                <span className="text-muted-foreground">Браузер</span>
+                                <span className="font-medium">{lead.browser}</span>
+                            </div>
+                        )}
+                        {(lead.utm_source || lead.utm_medium || lead.utm_campaign) && (
+                            <div className="pt-2 border-t mt-2 space-y-1">
+                                <span className="text-xs text-muted-foreground font-medium uppercase">UTM-метки</span>
+                                {lead.utm_source && <div className="text-xs"><span className="text-muted-foreground">source:</span> {lead.utm_source}</div>}
+                                {lead.utm_medium && <div className="text-xs"><span className="text-muted-foreground">medium:</span> {lead.utm_medium}</div>}
+                                {lead.utm_campaign && <div className="text-xs"><span className="text-muted-foreground">campaign:</span> {lead.utm_campaign}</div>}
+                            </div>
+                        )}
+                    </div>
+                </div>
+
+                {/* История изменений */}
                 <div className="sticky top-6 rounded-lg border bg-card text-card-foreground shadow-sm p-6">
-                    <h3 className="font-semibold leading-none tracking-tight mb-4">История изменений</h3>
+                    <h3 className="font-semibold leading-none tracking-tight mb-4 flex items-center gap-2">
+                        <Clock className="h-4 w-4 text-primary" />
+                        История изменений
+                    </h3>
                     <div className="space-y-4 max-h-[600px] overflow-y-auto">
                         {history.length === 0 && <p className="text-sm text-muted-foreground">История пуста</p>}
-                        {history.map((record: any) => (
-                            <div key={record.id} className="relative pb-4 pl-4 border-l last:border-0 border-gray-200 dark:border-gray-800">
-                                <div className="absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full bg-primary" />
-                                <div className="text-sm font-medium">
-                                    {record.new_status ? `Статус: ${record.new_status}` : 'Изменение'}
-                                </div>
-                                <div className="text-xs text-muted-foreground">
-                                    {format(new Date(record.created_at), "d MMM yyyy HH:mm", { locale: ru })}
-                                </div>
-                                {record.users && (
-                                    <div className="text-xs text-muted-foreground mt-1">
-                                        Автор: {record.users.full_name}
+                        {history.map((record: any) => {
+                            const isCreation = record.comment?.includes('Лид создан') || record.comment?.includes('создан')
+                            const isManagerChange = record.comment?.includes('Менеджер:')
+                            const isStatusChange = record.old_status && record.new_status && record.old_status !== record.new_status
+
+                            const getEventIcon = () => {
+                                if (isCreation) return <Plus className="h-3 w-3 text-green-600" />
+                                if (isManagerChange) return <UserPlus className="h-3 w-3 text-blue-600" />
+                                if (isStatusChange) return <ArrowRight className="h-3 w-3 text-orange-600" />
+                                return <FileText className="h-3 w-3 text-muted-foreground" />
+                            }
+
+                            const getEventColor = () => {
+                                if (isCreation) return "bg-green-500"
+                                if (isManagerChange) return "bg-blue-500"
+                                if (isStatusChange) return "bg-orange-500"
+                                return "bg-primary"
+                            }
+
+                            const getEventTitle = () => {
+                                if (isCreation) return "Лид создан"
+                                if (isManagerChange) return "Назначение менеджера"
+                                if (isStatusChange) return `${record.old_status} → ${record.new_status}`
+                                return record.new_status ? `Статус: ${record.new_status}` : "Изменение"
+                            }
+
+                            return (
+                                <div key={record.id} className="relative pb-4 pl-6 border-l last:border-0 border-gray-200 dark:border-gray-800">
+                                    <div className={`absolute left-[-5px] top-1 h-2.5 w-2.5 rounded-full ${getEventColor()}`} />
+                                    <div className="flex items-center gap-1.5 text-sm font-medium">
+                                        {getEventIcon()}
+                                        {getEventTitle()}
                                     </div>
-                                )}
-                                {record.comment && (
-                                    <div className="text-sm mt-1 bg-muted p-2 rounded-md">
-                                        {record.comment}
+                                    <div className="text-xs text-muted-foreground">
+                                        {format(new Date(record.created_at), "d MMM yyyy HH:mm", { locale: ru })}
                                     </div>
-                                )}
-                            </div>
-                        ))}
+                                    {record.users && (
+                                        <div className="text-xs text-muted-foreground mt-1">
+                                            Автор: {record.users.full_name}
+                                        </div>
+                                    )}
+                                    {record.comment && !isCreation && (
+                                        <div className="text-sm mt-1 bg-muted p-2 rounded-md">
+                                            {record.comment}
+                                        </div>
+                                    )}
+                                </div>
+                            )
+                        })}
                     </div>
                 </div>
             </div>

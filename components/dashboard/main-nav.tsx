@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
 
-import { LayoutDashboard, Users, UserCog, Building2, Settings } from "lucide-react";
+import { LayoutDashboard, Users, UserCog, Building2, Settings, BarChart3, Crown, UserCheck, Building } from "lucide-react";
 
 const mainNav = [
     {
@@ -13,9 +13,24 @@ const mainNav = [
         icon: LayoutDashboard,
     },
     {
+        title: "Аналитика",
+        href: "/dashboard/analytics",
+        icon: BarChart3,
+    },
+    {
         title: "Лиды",
         href: "/dashboard/leads",
         icon: Users,
+    },
+    {
+        title: "Клиенты",
+        href: "/dashboard/clients",
+        icon: UserCheck,
+    },
+    {
+        title: "Компании",
+        href: "/dashboard/companies",
+        icon: Building,
     },
     {
         title: "Дилеры",
@@ -26,6 +41,11 @@ const mainNav = [
         title: "Менеджеры",
         href: "/dashboard/managers",
         icon: UserCog,
+    },
+    {
+        title: "MAAN",
+        href: "/dashboard/maan",
+        icon: Crown,
     },
     {
         title: "Настройки",
@@ -43,11 +63,15 @@ export function MainNav({ className, role = 'manager', ...props }: MainNavProps)
 
     // Filter items based on role
     const filteredNav = mainNav.filter(item => {
-        // Managers only see Dashboard and Leads
-        if (role === 'manager') {
-            return ['/dashboard', '/dashboard/leads'].includes(item.href);
+        // MAAN section only for super_admin
+        if (item.href === '/dashboard/maan' && role !== 'super_admin') {
+            return false;
         }
-        // Others see everything
+        // Managers see Dashboard, Analytics, Leads, and Clients
+        if (role === 'manager') {
+            return ['/dashboard', '/dashboard/analytics', '/dashboard/leads', '/dashboard/clients'].includes(item.href);
+        }
+        // Others see everything (except MAAN filtered above)
         return true;
     });
 

@@ -6,6 +6,7 @@ import { MainNav } from "@/components/dashboard/main-nav";
 import { UserNav } from "@/components/dashboard/user-nav";
 import { TeamSwitcher } from "@/components/dashboard/team-switcher";
 import { ModeToggle } from "@/components/ui/mode-toggle";
+import { NotificationBell } from "@/components/dashboard/notification-bell";
 
 export default async function DashboardLayout({
     children,
@@ -53,6 +54,7 @@ export default async function DashboardLayout({
                     <TeamSwitcher role={userRole} />
                     <MainNav className="mx-6" role={userRole} />
                     <div className="ml-auto flex items-center space-x-4">
+                        <NotificationBell />
                         <ModeToggle />
                         <UserNav />
                     </div>

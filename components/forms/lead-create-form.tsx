@@ -3,7 +3,7 @@
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import * as z from "zod"
-import { Loader2, User, Phone, MapPin, MessageSquare } from "lucide-react"
+import { Loader2, User, Phone, MapPin, MessageSquare, Tag, Banknote } from "lucide-react"
 import { useRouter } from "next/navigation"
 import { useState } from "react"
 import { toast } from "sonner"
@@ -28,6 +28,10 @@ import {
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { createLead } from "@/app/dashboard/leads/actions"
+import { checkDuplicatePhone, type DuplicateLeadInfo } from "@/app/actions/check-duplicate"
+import { DuplicateWarningDialog } from "@/components/dashboard/duplicate-warning-dialog"
+import { Badge } from "@/components/ui/badge"
+import { SERVICES } from "@/lib/constants"
 
 const MAIN_REGIONS = [
     "Toshkent shahar",
@@ -83,6 +87,8 @@ const leadCreateSchema = z.object({
     source: z.string(),
     tenant_id: z.string().nullable().optional(),
     assigned_manager_id: z.string().nullable().optional(),
+    services: z.array(z.string()).optional(),
+    conversion_value: z.number().optional(),
 })
 
 type LeadCreateValues = z.infer<typeof leadCreateSchema>
@@ -94,6 +100,9 @@ interface LeadCreateFormProps {
 export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [duplicateInfo, setDuplicateInfo] = useState<DuplicateLeadInfo | null>(null)
+    const [showDuplicateDialog, setShowDuplicateDialog] = useState(false)
+    const [pendingValues, setPendingValues] = useState<LeadCreateValues | null>(null)
 
     const form = useForm<LeadCreateValues>({
         resolver: zodResolver(leadCreateSchema),
@@ -107,18 +116,21 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
             source: "manual",
             tenant_id: null,
             assigned_manager_id: null,
+            services: [],
+            conversion_value: 0,
         },
     })
 
     const selectedCity = form.watch("city");
 
-    async function onSubmit(values: LeadCreateValues) {
+    async function doCreateLead(values: LeadCreateValues) {
         setIsSubmitting(true)
         try {
-            // Clean up region if not Toshkent shahar
             const submissionData = {
                 ...values,
                 region: values.city === "Toshkent shahar" ? values.region : null,
+                services: values.services || [],
+                conversion_value: values.conversion_value || null,
             }
 
             const res = await createLead(submissionData)
@@ -139,6 +151,25 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
             console.error(error)
             toast.error(error.message || "Ошибка при создании лида")
         } finally {
+            setIsSubmitting(false)
+        }
+    }
+
+    async function onSubmit(values: LeadCreateValues) {
+        setIsSubmitting(true)
+        try {
+            const duplicate = await checkDuplicatePhone(values.phone)
+            if (duplicate) {
+                setDuplicateInfo(duplicate)
+                setPendingValues(values)
+                setShowDuplicateDialog(true)
+                setIsSubmitting(false)
+                return
+            }
+            await doCreateLead(values)
+        } catch (error: any) {
+            console.error(error)
+            toast.error(error.message || "Ошибка при создании лида")
             setIsSubmitting(false)
         }
     }
@@ -271,6 +302,72 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                             </CardContent>
                         </Card>
 
+                        {/* Услуги и сумма */}
+                        <Card>
+                            <CardHeader className="pb-3">
+                                <CardTitle className="text-base flex items-center gap-2">
+                                    <Tag className="h-4 w-4 text-primary" />
+                                    Услуги и сумма
+                                </CardTitle>
+                            </CardHeader>
+                            <CardContent className="space-y-4">
+                                <FormField
+                                    control={form.control}
+                                    name="services"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Услуги</FormLabel>
+                                            <div className="flex flex-wrap gap-2">
+                                                {SERVICES.map((service) => {
+                                                    const isSelected = field.value?.includes(service)
+                                                    return (
+                                                        <Badge
+                                                            key={service}
+                                                            variant={isSelected ? "default" : "outline"}
+                                                            className="cursor-pointer select-none transition-colors"
+                                                            onClick={() => {
+                                                                const current = field.value || []
+                                                                if (isSelected) {
+                                                                    field.onChange(current.filter((s: string) => s !== service))
+                                                                } else {
+                                                                    field.onChange([...current, service])
+                                                                }
+                                                            }}
+                                                        >
+                                                            {service}
+                                                        </Badge>
+                                                    )
+                                                })}
+                                            </div>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                                <FormField
+                                    control={form.control}
+                                    name="conversion_value"
+                                    render={({ field }) => (
+                                        <FormItem>
+                                            <FormLabel>Сумма сделки (сум)</FormLabel>
+                                            <FormControl>
+                                                <div className="relative">
+                                                    <Banknote className="absolute left-2.5 top-2.5 h-4 w-4 text-green-600" />
+                                                    <Input
+                                                        type="number"
+                                                        placeholder="0"
+                                                        className="pl-9"
+                                                        {...field}
+                                                        onChange={e => field.onChange(parseFloat(e.target.value))}
+                                                    />
+                                                </div>
+                                            </FormControl>
+                                            <FormMessage />
+                                        </FormItem>
+                                    )}
+                                />
+                            </CardContent>
+                        </Card>
+
                         {/* Комментарий */}
                         <Card>
                             <CardHeader className="pb-3">
@@ -304,6 +401,16 @@ export function LeadCreateForm({ onSuccess }: LeadCreateFormProps) {
                     </form>
                 </Form>
             </div>
+
+            <DuplicateWarningDialog
+                open={showDuplicateDialog}
+                onOpenChange={setShowDuplicateDialog}
+                duplicate={duplicateInfo}
+                onConfirm={() => {
+                    setShowDuplicateDialog(false)
+                    if (pendingValues) doCreateLead(pendingValues)
+                }}
+            />
         </div>
     )
 }

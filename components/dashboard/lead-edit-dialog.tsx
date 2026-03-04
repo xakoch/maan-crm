@@ -1,6 +1,7 @@
 "use client"
 
-import { X } from "lucide-react"
+import { X, Loader2 } from "lucide-react"
+import { useState, useEffect } from "react"
 import {
     Sheet,
     SheetContent,
@@ -12,6 +13,7 @@ import {
 import { LeadEditForm } from "@/components/forms/lead-edit-form"
 import { Lead } from "@/types/app"
 import { useRouter } from "next/navigation"
+import { createClient } from "@/lib/supabase/client"
 
 interface LeadEditDialogProps {
     lead: Lead | null
@@ -21,6 +23,35 @@ interface LeadEditDialogProps {
 
 export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps) {
     const router = useRouter()
+    const [history, setHistory] = useState<any[]>([])
+    const [loadingHistory, setLoadingHistory] = useState(false)
+
+    useEffect(() => {
+        async function fetchHistory() {
+            if (!lead?.id || !open) {
+                setHistory([])
+                return
+            }
+            setLoadingHistory(true)
+            try {
+                const supabase = createClient()
+                const { data, error } = await supabase
+                    .from('lead_history')
+                    .select('*, users(full_name)')
+                    .eq('lead_id', lead.id)
+                    .order('created_at', { ascending: false })
+
+                if (!error && data) {
+                    setHistory(data)
+                }
+            } catch (e) {
+                console.error('Error fetching history:', e)
+            } finally {
+                setLoadingHistory(false)
+            }
+        }
+        fetchHistory()
+    }, [lead?.id, open])
 
     if (!lead) return null
 
@@ -43,6 +74,7 @@ export function LeadEditDialog({ lead, open, onOpenChange }: LeadEditDialogProps
                     <div className="pb-8">
                         <LeadEditForm
                             lead={lead}
+                            history={history}
                             onSuccess={() => {
                                 onOpenChange(false)
                                 router.refresh()

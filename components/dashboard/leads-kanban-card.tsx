@@ -4,7 +4,7 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, MapPin, User, Phone, Building2, Globe, Instagram, Facebook, Laptop, HelpCircle } from "lucide-react"
+import { Calendar, MapPin, User, Phone, Building2, Globe, Instagram, Facebook, Laptop, HelpCircle, Tag } from "lucide-react"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -20,6 +20,9 @@ interface LeadCardProps {
     lead: Lead
     isOverlay?: boolean
     onClick?: () => void
+    selectionMode?: boolean
+    selected?: boolean
+    onSelect?: (id: string) => void
 }
 
 const getSourceIcon = (source: string) => {
@@ -32,7 +35,7 @@ const getSourceIcon = (source: string) => {
     }
 }
 
-export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
+export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, onSelect }: LeadCardProps) {
     const {
         attributes,
         listeners,
@@ -68,16 +71,30 @@ export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
             ref={setNodeRef}
             style={style}
             {...attributes}
-            {...listeners}
-            onClick={onClick}
+            {...(selectionMode ? {} : listeners)}
+            onClick={selectionMode ? () => onSelect?.(lead.id) : onClick}
             className={cn(
-                "group relative cursor-grab active:cursor-grabbing hover:shadow-md transition-all border-l-4",
+                "group relative hover:shadow-md transition-all border-l-4",
+                selectionMode ? "cursor-pointer" : "cursor-grab active:cursor-grabbing",
                 isOverlay ? "rotate-2 scale-105 shadow-xl cursor-grabbing z-50 border-primary" : "border-l-transparent hover:border-l-primary/50",
+                selected && "ring-2 ring-primary bg-primary/5",
                 "bg-card text-card-foreground"
             )}
         >
             <CardHeader className="p-2 space-y-0 pb-1">
                 <div className="flex justify-between items-start gap-2">
+                    {selectionMode && (
+                        <div className={cn(
+                            "w-4 h-4 rounded border-2 shrink-0 mt-0.5 flex items-center justify-center transition-colors",
+                            selected ? "bg-primary border-primary" : "border-muted-foreground/40"
+                        )}>
+                            {selected && (
+                                <svg className="w-3 h-3 text-primary-foreground" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" />
+                                </svg>
+                            )}
+                        </div>
+                    )}
                     <CardTitle className="text-sm font-medium truncate leading-tight">
                         {lead.name}
                     </CardTitle>
@@ -127,6 +144,21 @@ export function LeadCard({ lead, isOverlay, onClick }: LeadCardProps) {
                         </span>
                     </div>
                 </div>
+                {lead.services && lead.services.length > 0 && (
+                    <div className="flex flex-wrap gap-1 pt-1">
+                        {lead.services.slice(0, 3).map((service: string) => (
+                            <Badge key={service} variant="secondary" className="text-[9px] px-1 py-0 h-4">
+                                <Tag className="w-2 h-2 mr-0.5" />
+                                {service}
+                            </Badge>
+                        ))}
+                        {lead.services.length > 3 && (
+                            <Badge variant="secondary" className="text-[9px] px-1 py-0 h-4">
+                                +{lead.services.length - 3}
+                            </Badge>
+                        )}
+                    </div>
+                )}
             </CardContent>
         </Card>
     )

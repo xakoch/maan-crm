@@ -9,6 +9,7 @@ import { RecentSales } from "@/components/dashboard/recent-sales";
 import { getDashboardStats } from "@/lib/stats";
 import { Button } from "@/components/ui/button";
 import { TelegramSetupButton } from "@/components/dashboard/telegram-setup-button";
+import Link from "next/link";
 
 export default async function DashboardPage() {
     const cookieStore = await cookies();
@@ -56,8 +57,8 @@ export default async function DashboardPage() {
             <Tabs defaultValue="overview" className="space-y-4">
                 <TabsList>
                     <TabsTrigger value="overview">Обзор</TabsTrigger>
-                    <TabsTrigger value="analytics" disabled>
-                        Аналитика
+                    <TabsTrigger value="analytics" asChild>
+                        <Link href="/dashboard/analytics">Аналитика</Link>
                     </TabsTrigger>
                     <TabsTrigger value="reports" disabled>
                         Отчеты

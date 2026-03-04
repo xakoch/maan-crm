@@ -18,9 +18,12 @@ interface LeadColumnProps {
     color: string
     leads: Lead[]
     onLeadClick?: (lead: Lead) => void
+    selectionMode?: boolean
+    selectedIds?: Set<string>
+    onSelectLead?: (id: string) => void
 }
 
-export function LeadColumn({ id, title, color, leads, onLeadClick }: LeadColumnProps) {
+export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode, selectedIds, onSelectLead }: LeadColumnProps) {
     const { setNodeRef } = useDroppable({
         id: id,
     })
@@ -43,7 +46,14 @@ export function LeadColumn({ id, title, color, leads, onLeadClick }: LeadColumnP
                     strategy={verticalListSortingStrategy}
                 >
                     {leads.map((lead) => (
-                        <LeadCard key={lead.id} lead={lead} onClick={() => onLeadClick?.(lead)} />
+                        <LeadCard
+                            key={lead.id}
+                            lead={lead}
+                            onClick={() => onLeadClick?.(lead)}
+                            selectionMode={selectionMode}
+                            selected={selectedIds?.has(lead.id)}
+                            onSelect={onSelectLead}
+                        />
                     ))}
                 </SortableContext>
 

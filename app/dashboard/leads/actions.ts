@@ -6,6 +6,7 @@ import { createClient as createSupabaseClient } from "@supabase/supabase-js"
 import { revalidatePath } from "next/cache"
 import { Database } from "@/types/database.types"
 import { sendLeadNotification, sendGroupLeadNotification } from "@/lib/telegram/notifications"
+import { autoCreateClientFromLead } from "@/app/actions/auto-create-client"
 
 type LeadStatus = Database['public']['Tables']['leads']['Row']['status']
 
@@ -28,7 +29,9 @@ export async function createLead(values: any) {
                 assigned_manager_id: values.assigned_manager_id || null,
                 comment: values.comment || null,
                 company_name: values.company_name || null,
-                lead_type: values.lead_type || 'person'
+                lead_type: values.lead_type || 'person',
+                services: values.services || [],
+                conversion_value: values.conversion_value || null
             }])
             .select()
             .single()
@@ -100,6 +103,7 @@ export async function createLead(values: any) {
         }
 
         revalidatePath('/dashboard/leads')
+        revalidatePath('/dashboard/maan')
         return { success: true, data: lead }
 
     } catch (e: any) {
@@ -109,10 +113,47 @@ export async function createLead(values: any) {
 }
 
 
+export async function bulkUpdateLeads(ids: string[], updates: { status?: LeadStatus; assigned_manager_id?: string }) {
+    const supabase = await createClient()
+
+    try {
+        const updateData: Record<string, any> = {}
+        if (updates.status) updateData.status = updates.status
+        if (updates.assigned_manager_id) updateData.assigned_manager_id = updates.assigned_manager_id
+
+        const { data, error } = await supabase
+            .from('leads')
+            .update(updateData)
+            .in('id', ids)
+            .select()
+
+        if (error) {
+            console.error("Bulk Update Error:", error)
+            return { success: false, error: error.message }
+        }
+
+        revalidatePath('/dashboard/leads')
+        revalidatePath('/dashboard/maan')
+        return { success: true, updatedCount: data?.length || 0 }
+    } catch (e: any) {
+        console.error("Bulk Update Exception:", e)
+        return { success: false, error: e.message || "Unknown error" }
+    }
+}
+
 export async function updateLeadStatus(id: string, status: LeadStatus) {
     const supabase = await createClient()
 
     try {
+        // Get current lead to record old status
+        const { data: currentLead } = await supabase
+            .from('leads')
+            .select('status')
+            .eq('id', id)
+            .single()
+
+        const oldStatus = currentLead?.status || null
+
         // Now update
         const { data, error } = await supabase
             .from('leads')
@@ -130,7 +171,26 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
             return { success: false, error: "Запись не обновлена. Проверьте права доступа." }
         }
 
+        // Record history for kanban drag
+        if (oldStatus !== status) {
+            const { data: { user } } = await supabase.auth.getUser()
+            await supabase.from('lead_history').insert({
+                lead_id: id,
+                changed_by: user?.id,
+                old_status: oldStatus,
+                new_status: status,
+                comment: `Статус изменен (канбан): ${oldStatus} → ${status}`
+            })
+        }
+
+        // Auto-create client when lead is closed
+        if (status === 'closed') {
+            await autoCreateClientFromLead(id)
+        }
+
         revalidatePath('/dashboard/leads')
+        revalidatePath('/dashboard/maan')
+        revalidatePath('/dashboard/clients')
         return { success: true }
     } catch (e: any) {
         console.error("Server Action Exception:", e)

@@ -3,12 +3,26 @@
 import { createClient } from "@supabase/supabase-js"
 import { Database } from "@/types/database.types"
 import { sendLeadNotification, sendGroupLeadNotification } from "@/lib/telegram/notifications"
+import { headers } from "next/headers"
+
+interface LeadTrackingInput {
+    utm_source?: string | null
+    utm_medium?: string | null
+    utm_campaign?: string | null
+    utm_content?: string | null
+    utm_term?: string | null
+    referrer_url?: string | null
+    landing_page_url?: string | null
+    device_type?: string | null
+    browser?: string | null
+}
 
 export async function submitPublicLead(formData: {
     name: string
     phone: string
     city: string
     region?: string
+    tracking?: LeadTrackingInput
 }) {
     // 1. Init Admin Client (Service Role)
     const supabase = createClient<Database>(
@@ -17,6 +31,13 @@ export async function submitPublicLead(formData: {
     )
 
     try {
+        // Capture IP address from request headers
+        const headersList = await headers()
+        const ip_address = headersList.get("x-forwarded-for")?.split(",")[0]?.trim()
+            || headersList.get("x-real-ip")
+            || null
+
+        const tracking = formData.tracking || {}
 
         let tenantId = null
 
@@ -79,8 +100,18 @@ export async function submitPublicLead(formData: {
                 region: formData.region || null,
                 tenant_id: tenantId,
                 assigned_manager_id: assignedManagerId,
-                source: 'website',
-                status: assignedManagerId ? 'processing' : 'new'
+                source: tracking.utm_source || 'website',
+                status: assignedManagerId ? 'processing' : 'new',
+                utm_source: tracking.utm_source || null,
+                utm_medium: tracking.utm_medium || null,
+                utm_campaign: tracking.utm_campaign || null,
+                utm_content: tracking.utm_content || null,
+                utm_term: tracking.utm_term || null,
+                referrer_url: tracking.referrer_url || null,
+                landing_page_url: tracking.landing_page_url || null,
+                device_type: tracking.device_type || null,
+                browser: tracking.browser || null,
+                ip_address: ip_address,
             })
             .select()
             .single()

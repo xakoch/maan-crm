@@ -22,8 +22,11 @@ import {
 } from "@/components/ui/card";
 import { ChevronDown } from "lucide-react";
 import { toast } from "sonner";
-import { useState } from "react";
+import { useState, Suspense } from "react";
 import { submitPublicLead } from "@/app/actions/public-lead";
+import { useLeadTracking } from "@/hooks/use-lead-tracking";
+import { checkDuplicatePhone, type DuplicateLeadInfo } from "@/app/actions/check-duplicate";
+import { DuplicateWarningDialog } from "@/components/dashboard/duplicate-warning-dialog";
 
 // Static Data
 const ACTIVE_REGIONS_RU = [
@@ -129,11 +132,15 @@ interface LeadFormProps {
     language?: 'ru' | 'uz';
 }
 
-export default function LeadForm({ language = 'ru' }: LeadFormProps) {
+function LeadFormInner({ language = 'ru' }: LeadFormProps) {
     const t = translations[language];
+    const trackingData = useLeadTracking();
     const [selectedCity, setSelectedCity] = useState("");
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [isSuccess, setIsSuccess] = useState(false);
+    const [duplicateInfo, setDuplicateInfo] = useState<DuplicateLeadInfo | null>(null);
+    const [showDuplicateDialog, setShowDuplicateDialog] = useState(false);
+    const [pendingValues, setPendingValues] = useState<z.infer<typeof formSchema> | null>(null);
 
     // Select correct data based on language
     const ACTIVE_REGIONS = language === 'ru' ? ACTIVE_REGIONS_RU : ACTIVE_REGIONS_UZ;
@@ -168,15 +175,15 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
         form.setValue("region", "");
     };
 
-    async function onSubmit(values: z.infer<typeof formSchema>) {
+    async function doSubmitLead(values: z.infer<typeof formSchema>) {
         setIsSubmitting(true);
         const isTashkentSubmit = values.city === "Toshkent shahar" || values.city === "Ташкент (город)";
 
         try {
-            // Clean up region if not present in available list (e.g. if switched away from Tashkent)
             const submissionData = {
                 ...values,
-                region: (isTashkentSubmit && values.region) ? values.region : undefined
+                region: (isTashkentSubmit && values.region) ? values.region : undefined,
+                tracking: trackingData,
             };
 
             const result = await submitPublicLead(submissionData);
@@ -191,6 +198,25 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
             console.error(error);
             toast.error("Ошибка при отправке заявки. Попробуйте еще раз.");
         } finally {
+            setIsSubmitting(false);
+        }
+    }
+
+    async function onSubmit(values: z.infer<typeof formSchema>) {
+        setIsSubmitting(true);
+        try {
+            const duplicate = await checkDuplicatePhone(values.phone);
+            if (duplicate) {
+                setDuplicateInfo(duplicate);
+                setPendingValues(values);
+                setShowDuplicateDialog(true);
+                setIsSubmitting(false);
+                return;
+            }
+            await doSubmitLead(values);
+        } catch (error) {
+            console.error(error);
+            toast.error("Ошибка при отправке заявки. Попробуйте еще раз.");
             setIsSubmitting(false);
         }
     }
@@ -374,6 +400,24 @@ export default function LeadForm({ language = 'ru' }: LeadFormProps) {
                     </form>
                 </Form>
             </CardContent>
+
+            <DuplicateWarningDialog
+                open={showDuplicateDialog}
+                onOpenChange={setShowDuplicateDialog}
+                duplicate={duplicateInfo}
+                onConfirm={() => {
+                    setShowDuplicateDialog(false);
+                    if (pendingValues) doSubmitLead(pendingValues);
+                }}
+            />
         </Card>
+    );
+}
+
+export default function LeadForm({ language = 'ru' }: LeadFormProps) {
+    return (
+        <Suspense>
+            <LeadFormInner language={language} />
+        </Suspense>
     );
 }

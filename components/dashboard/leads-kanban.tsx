@@ -37,6 +37,9 @@ type LeadStatus = 'new' | 'processing' | 'closed' | 'rejected'
 
 interface LeadsKanbanProps {
     initialLeads: Lead[]
+    selectionMode?: boolean
+    selectedIds?: Set<string>
+    onSelectLead?: (id: string) => void
 }
 
 const columnIds: LeadStatus[] = ['new', 'processing', 'closed', 'rejected']
@@ -76,7 +79,7 @@ const customCollisionDetection: CollisionDetection = (args) => {
     return rectCollisions.length > 0 ? rectCollisions : pointerCollisions
 }
 
-export function LeadsKanban({ initialLeads }: LeadsKanbanProps) {
+export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelectLead }: LeadsKanbanProps) {
     const router = useRouter()
     const [leads, setLeads] = useState<Lead[]>(initialLeads)
     const [activeId, setActiveId] = useState<string | null>(null)
@@ -224,6 +227,9 @@ export function LeadsKanban({ initialLeads }: LeadsKanbanProps) {
                             color={col.color}
                             leads={columnLeads}
                             onLeadClick={(lead: Lead) => setEditingLead(lead)}
+                            selectionMode={selectionMode}
+                            selectedIds={selectedIds}
+                            onSelectLead={onSelectLead}
                         />
                     )
                 })}
