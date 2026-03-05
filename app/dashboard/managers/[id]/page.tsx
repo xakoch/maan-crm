@@ -22,11 +22,12 @@ export default async function EditManagerPage({ params }: { params: Promise<{ id
 
     const initialData = {
         ...manager,
+        username: manager.username || "",
         phone: manager.phone || "",
         tenant_id: manager.tenant_id || "",
         telegram_username: manager.telegram_username || undefined,
         is_active: manager.is_active ?? true,
-        password: "", // Password is never returned from DB
+        password: "",
     }
 
     // Fetch manager stats

@@ -4,7 +4,8 @@ import { useSortable } from "@dnd-kit/sortable"
 import { CSS } from "@dnd-kit/utilities"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Calendar, MapPin, User, Phone, Building2, Globe, Instagram, Facebook, Laptop, HelpCircle, Tag } from "lucide-react"
+import { Button } from "@/components/ui/button"
+import { Calendar, MapPin, User, Phone, Building2, Globe, Instagram, Facebook, Laptop, HelpCircle, Tag, HandMetal } from "lucide-react"
 import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
@@ -23,6 +24,7 @@ interface LeadCardProps {
     selectionMode?: boolean
     selected?: boolean
     onSelect?: (id: string) => void
+    onClaim?: (id: string) => void
 }
 
 const getSourceIcon = (source: string) => {
@@ -35,7 +37,7 @@ const getSourceIcon = (source: string) => {
     }
 }
 
-export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, onSelect }: LeadCardProps) {
+export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, onSelect, onClaim }: LeadCardProps) {
     const {
         attributes,
         listeners,
@@ -144,6 +146,19 @@ export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, on
                         </span>
                     </div>
                 </div>
+                {onClaim && !lead.assigned_manager_id && lead.status === 'new' && (
+                    <Button
+                        size="sm"
+                        className="w-full h-7 text-xs mt-1"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            onClaim(lead.id)
+                        }}
+                    >
+                        <HandMetal className="w-3 h-3 mr-1" />
+                        Взять заявку
+                    </Button>
+                )}
                 {lead.services && lead.services.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">
                         {lead.services.slice(0, 3).map((service: string) => (

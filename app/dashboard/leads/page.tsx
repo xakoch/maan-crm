@@ -1,5 +1,8 @@
+import Link from "next/link"
 import { createClient } from "@/lib/supabase/server"
 import { LeadsClient } from "./client"
+import { getPipelineStages } from "@/app/actions/settings"
+import { stagesToKanbanColumns } from "@/lib/pipeline"
 
 export const dynamic = 'force-dynamic'
 
@@ -76,15 +79,25 @@ interface LeadsPageProps {
 export default async function LeadsPage({ searchParams }: LeadsPageProps) {
     const params = await searchParams
     const loadAll = params.all === 'true'
-    const { leads, totalCount } = await getData(loadAll)
+    const [{ leads, totalCount }, stages] = await Promise.all([
+        getData(loadAll),
+        getPipelineStages('lumara'),
+    ])
     const hasMore = !loadAll && totalCount > DEFAULT_LIMIT
+    const columns = stagesToKanbanColumns(stages)
 
     return (
         <div className="container mx-auto py-10">
             <div className="flex items-center justify-between mb-8">
                 <h1 className="text-3xl font-bold tracking-tight">Заявки (Лиды)</h1>
+                <Link
+                    href="/dashboard/leads/deleted"
+                    className="text-sm text-muted-foreground hover:text-foreground transition-colors"
+                >
+                    Удалённые лиды
+                </Link>
             </div>
-            <LeadsClient data={leads} hasMore={hasMore} totalCount={totalCount} />
+            <LeadsClient data={leads} hasMore={hasMore} totalCount={totalCount} columns={columns} />
         </div>
     )
 }

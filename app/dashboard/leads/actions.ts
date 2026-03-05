@@ -8,7 +8,7 @@ import { Database } from "@/types/database.types"
 import { sendLeadNotification, sendGroupLeadNotification } from "@/lib/telegram/notifications"
 import { autoCreateClientFromLead } from "@/app/actions/auto-create-client"
 
-type LeadStatus = Database['public']['Tables']['leads']['Row']['status']
+type LeadStatus = string
 
 export async function createLead(values: any) {
     const supabase = await createClient()
@@ -183,8 +183,19 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
             })
         }
 
-        // Auto-create client when lead is closed
-        if (status === 'closed') {
+        // Auto-create client when lead reaches a final stage
+        const adminSupabase = createSupabaseClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+        const { data: stage } = await adminSupabase
+            .from('pipeline_stages')
+            .select('is_final')
+            .eq('slug', status)
+            .limit(1)
+            .single()
+
+        if (stage?.is_final) {
             await autoCreateClientFromLead(id)
         }
 
@@ -195,5 +206,113 @@ export async function updateLeadStatus(id: string, status: LeadStatus) {
     } catch (e: any) {
         console.error("Server Action Exception:", e)
         return { success: false, error: e.message || "Unknown error" }
+    }
+}
+
+export async function claimLead(leadId: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Не авторизован" }
+
+    try {
+        // Check lead is still unclaimed
+        const { data: lead } = await supabase
+            .from('leads')
+            .select('id, assigned_manager_id, status')
+            .eq('id', leadId)
+            .single()
+
+        if (!lead) return { success: false, error: "Заявка не найдена" }
+        if (lead.assigned_manager_id) return { success: false, error: "Заявка уже взята другим менеджером" }
+
+        // Claim the lead
+        const { error } = await supabase
+            .from('leads')
+            .update({
+                assigned_manager_id: user.id,
+                status: 'processing',
+                updated_at: new Date().toISOString(),
+            })
+            .eq('id', leadId)
+            .is('assigned_manager_id', null)
+
+        if (error) return { success: false, error: error.message }
+
+        // Record history
+        await supabase.from('lead_history').insert({
+            lead_id: leadId,
+            changed_by: user.id,
+            old_status: lead.status,
+            new_status: 'processing',
+            comment: 'Менеджер взял заявку',
+        })
+
+        revalidatePath('/dashboard/maan')
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e.message || "Ошибка" }
+    }
+}
+
+export async function deleteLead(leadId: string, reason: string) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Не авторизован" }
+
+    try {
+        // Fetch full lead data before deleting
+        const { data: lead, error: fetchError } = await supabase
+            .from('leads')
+            .select('*')
+            .eq('id', leadId)
+            .single()
+
+        if (fetchError || !lead) {
+            return { success: false, error: "Лид не найден" }
+        }
+
+        const adminSupabase = createSupabaseClient<Database>(
+            process.env.NEXT_PUBLIC_SUPABASE_URL!,
+            process.env.SUPABASE_SERVICE_ROLE_KEY!
+        )
+
+        // Archive the lead
+        const { error: archiveError } = await adminSupabase
+            .from('deleted_leads')
+            .insert({
+                original_lead_id: lead.id,
+                lead_data: lead,
+                deletion_reason: reason,
+                deleted_by: user.id,
+            })
+
+        if (archiveError) {
+            return { success: false, error: "Ошибка архивации: " + archiveError.message }
+        }
+
+        // Record in history
+        await adminSupabase.from('lead_history').insert({
+            lead_id: leadId,
+            changed_by: user.id,
+            old_status: lead.status,
+            new_status: 'deleted',
+            comment: `Лид удален. Причина: ${reason}`,
+        })
+
+        // Delete the lead
+        const { error: deleteError } = await adminSupabase
+            .from('leads')
+            .delete()
+            .eq('id', leadId)
+
+        if (deleteError) {
+            return { success: false, error: "Ошибка удаления: " + deleteError.message }
+        }
+
+        revalidatePath('/dashboard/leads')
+        revalidatePath('/dashboard/maan')
+        return { success: true }
+    } catch (e: any) {
+        return { success: false, error: e.message || "Ошибка" }
     }
 }

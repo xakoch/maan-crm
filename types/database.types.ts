@@ -9,6 +9,114 @@ export type Json =
 export interface Database {
     public: {
         Tables: {
+            cities: {
+                Row: {
+                    id: string
+                    name_ru: string
+                    name_uz: string
+                    region: string
+                    is_active: boolean
+                    sort_order: number
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    name_ru: string
+                    name_uz: string
+                    region: string
+                    is_active?: boolean
+                    sort_order?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    name_ru?: string
+                    name_uz?: string
+                    region?: string
+                    is_active?: boolean
+                    sort_order?: number
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
+            regions: {
+                Row: {
+                    id: string
+                    slug: string
+                    name_ru: string
+                    name_uz: string
+                    is_active: boolean
+                    sort_order: number
+                    has_districts: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    slug: string
+                    name_ru: string
+                    name_uz: string
+                    is_active?: boolean
+                    sort_order?: number
+                    has_districts?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    slug?: string
+                    name_ru?: string
+                    name_uz?: string
+                    is_active?: boolean
+                    sort_order?: number
+                    has_districts?: boolean
+                    created_at?: string
+                }
+                Relationships: []
+            }
+            form_configs: {
+                Row: {
+                    id: string
+                    slug: string
+                    title_ru: string
+                    title_uz: string
+                    subtitle_ru: string | null
+                    subtitle_uz: string | null
+                    crm_type: 'lumara' | 'maan'
+                    enabled_fields: string[]
+                    is_active: boolean
+                    created_at: string
+                    updated_at: string
+                }
+                Insert: {
+                    id?: string
+                    slug: string
+                    title_ru: string
+                    title_uz: string
+                    subtitle_ru?: string | null
+                    subtitle_uz?: string | null
+                    crm_type?: 'lumara' | 'maan'
+                    enabled_fields?: string[]
+                    is_active?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Update: {
+                    id?: string
+                    slug?: string
+                    title_ru?: string
+                    title_uz?: string
+                    subtitle_ru?: string | null
+                    subtitle_uz?: string | null
+                    crm_type?: 'lumara' | 'maan'
+                    enabled_fields?: string[]
+                    is_active?: boolean
+                    created_at?: string
+                    updated_at?: string
+                }
+                Relationships: []
+            }
             companies: {
                 Row: {
                     id: string
@@ -243,7 +351,7 @@ export interface Database {
                     region: string | null
                     tenant_id: string | null
                     assigned_manager_id: string | null
-                    status: 'new' | 'processing' | 'closed' | 'rejected'
+                    status: string
                     rejection_reason: string | null
                     conversion_value: number | null
                     source: string
@@ -265,6 +373,7 @@ export interface Database {
                     browser: string | null
                     ip_address: string | null
                     services: string[]
+                    form_config_id: string | null
                 }
                 Insert: {
                     id?: string
@@ -274,7 +383,7 @@ export interface Database {
                     region?: string | null
                     tenant_id?: string | null
                     assigned_manager_id?: string | null
-                    status?: 'new' | 'processing' | 'closed' | 'rejected'
+                    status?: string
                     rejection_reason?: string | null
                     conversion_value?: number | null
                     source?: string
@@ -296,6 +405,7 @@ export interface Database {
                     browser?: string | null
                     ip_address?: string | null
                     services?: string[]
+                    form_config_id?: string | null
                 }
                 Update: {
                     id?: string
@@ -305,7 +415,7 @@ export interface Database {
                     region?: string | null
                     tenant_id?: string | null
                     assigned_manager_id?: string | null
-                    status?: 'new' | 'processing' | 'closed' | 'rejected'
+                    status?: string
                     rejection_reason?: string | null
                     conversion_value?: number | null
                     source?: string
@@ -327,6 +437,7 @@ export interface Database {
                     browser?: string | null
                     ip_address?: string | null
                     services?: string[]
+                    form_config_id?: string | null
                 }
                 Relationships: [
                     {
@@ -342,6 +453,69 @@ export interface Database {
                         referencedColumns: ["id"]
                     }
                 ]
+            }
+            deleted_leads: {
+                Row: {
+                    id: string
+                    original_lead_id: string
+                    lead_data: any
+                    deletion_reason: string
+                    deleted_by: string | null
+                    deleted_at: string
+                }
+                Insert: {
+                    id?: string
+                    original_lead_id: string
+                    lead_data: any
+                    deletion_reason: string
+                    deleted_by?: string | null
+                    deleted_at?: string
+                }
+                Update: {
+                    id?: string
+                    original_lead_id?: string
+                    lead_data?: any
+                    deletion_reason?: string
+                    deleted_by?: string | null
+                    deleted_at?: string
+                }
+                Relationships: []
+            }
+            pipeline_stages: {
+                Row: {
+                    id: string
+                    slug: string
+                    title: string
+                    color: string
+                    sort_order: number
+                    crm_type: 'lumara' | 'maan'
+                    is_system: boolean
+                    is_final: boolean
+                    created_at: string
+                }
+                Insert: {
+                    id?: string
+                    slug: string
+                    title: string
+                    color?: string
+                    sort_order?: number
+                    crm_type: 'lumara' | 'maan'
+                    is_system?: boolean
+                    is_final?: boolean
+                    created_at?: string
+                }
+                Update: {
+                    id?: string
+                    slug?: string
+                    title?: string
+                    color?: string
+                    sort_order?: number
+                    crm_type?: 'lumara' | 'maan'
+                    is_system?: boolean
+                    is_final?: boolean
+                    created_at?: string
+                }
+                Relationships: []
             }
             lead_history: {
                 Row: {

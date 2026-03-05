@@ -21,9 +21,10 @@ interface LeadColumnProps {
     selectionMode?: boolean
     selectedIds?: Set<string>
     onSelectLead?: (id: string) => void
+    onClaimLead?: (id: string) => void
 }
 
-export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode, selectedIds, onSelectLead }: LeadColumnProps) {
+export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode, selectedIds, onSelectLead, onClaimLead }: LeadColumnProps) {
     const { setNodeRef } = useDroppable({
         id: id,
     })
@@ -53,6 +54,7 @@ export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode
                             selectionMode={selectionMode}
                             selected={selectedIds?.has(lead.id)}
                             onSelect={onSelectLead}
+                            onClaim={onClaimLead}
                         />
                     ))}
                 </SortableContext>

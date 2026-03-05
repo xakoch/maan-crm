@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation"
 import { updateLeadStatus } from "@/app/dashboard/leads/actions"
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useMemo, useCallback } from "react"
 import {
     DndContext,
     DragOverlay,
@@ -18,14 +18,13 @@ import {
     DragOverEvent,
     defaultDropAnimationSideEffects,
     DropAnimation,
-    UniqueIdentifier,
 } from "@dnd-kit/core"
-import { createClient } from "@/lib/supabase/client"
 import { toast } from "sonner"
 import { LeadColumn } from "./leads-kanban-column"
 import { LeadCard } from "./leads-kanban-card"
 import { Database } from "@/types/database.types"
 import { LeadEditDialog } from "./lead-edit-dialog"
+import { DEFAULT_STAGES } from "@/lib/pipeline"
 
 // Inline type to avoid import issues
 type Lead = Database['public']['Tables']['leads']['Row'] & {
@@ -33,63 +32,34 @@ type Lead = Database['public']['Tables']['leads']['Row'] & {
     managers: { full_name: string } | null
 }
 
-type LeadStatus = 'new' | 'processing' | 'closed' | 'rejected'
+export interface KanbanColumn {
+    id: string
+    title: string
+    color: string
+    is_final?: boolean
+}
 
 interface LeadsKanbanProps {
     initialLeads: Lead[]
+    columns?: KanbanColumn[]
     selectionMode?: boolean
     selectedIds?: Set<string>
     onSelectLead?: (id: string) => void
+    onClaimLead?: (id: string) => void
 }
 
-const columnIds: LeadStatus[] = ['new', 'processing', 'closed', 'rejected']
-
-const columns: { id: LeadStatus; title: string, color: string }[] = [
-    { id: 'new', title: 'Новые', color: 'bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-400' },
-    { id: 'processing', title: 'В работе', color: 'bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-400' },
-    { id: 'closed', title: 'Закрыто', color: 'bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-400' },
-    { id: 'rejected', title: 'Отказано', color: 'bg-rose-500/10 border-rose-500/20 text-rose-700 dark:text-rose-400' },
-]
-
-// Custom collision detection that prioritizes columns over cards
-const customCollisionDetection: CollisionDetection = (args) => {
-    // First, use rectIntersection to get all intersecting droppables
-    const rectCollisions = rectIntersection(args)
-
-    // If there's a column in the collisions, prioritize it
-    const columnCollision = rectCollisions.find(collision =>
-        columnIds.includes(collision.id as LeadStatus)
-    )
-
-    if (columnCollision) {
-        return [columnCollision]
-    }
-
-    // If no column found via rectIntersection, try pointerWithin
-    const pointerCollisions = pointerWithin(args)
-    const columnPointerCollision = pointerCollisions.find(collision =>
-        columnIds.includes(collision.id as LeadStatus)
-    )
-
-    if (columnPointerCollision) {
-        return [columnPointerCollision]
-    }
-
-    // Fallback: return all collisions (might include cards)
-    return rectCollisions.length > 0 ? rectCollisions : pointerCollisions
-}
-
-export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelectLead }: LeadsKanbanProps) {
+export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode, selectedIds, onSelectLead, onClaimLead }: LeadsKanbanProps) {
     const router = useRouter()
     const [leads, setLeads] = useState<Lead[]>(initialLeads)
     const [activeId, setActiveId] = useState<string | null>(null)
     const [editingLead, setEditingLead] = useState<Lead | null>(null)
 
+    const columns = columnsProp && columnsProp.length > 0 ? columnsProp : DEFAULT_STAGES
+    const columnIds = useMemo(() => columns.map(c => c.id), [columns])
+
     useEffect(() => {
         setLeads(initialLeads)
     }, [initialLeads])
-
-
 
     const sensors = useSensors(
         useSensor(PointerSensor, {
@@ -100,7 +70,24 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
         useSensor(TouchSensor)
     )
 
-    const [originalStatus, setOriginalStatus] = useState<LeadStatus | null>(null)
+    const [originalStatus, setOriginalStatus] = useState<string | null>(null)
+
+    // Custom collision detection that prioritizes columns over cards
+    const customCollisionDetection: CollisionDetection = useCallback((args) => {
+        const rectCollisions = rectIntersection(args)
+        const columnCollision = rectCollisions.find(collision =>
+            columnIds.includes(collision.id as string)
+        )
+        if (columnCollision) return [columnCollision]
+
+        const pointerCollisions = pointerWithin(args)
+        const columnPointerCollision = pointerCollisions.find(collision =>
+            columnIds.includes(collision.id as string)
+        )
+        if (columnPointerCollision) return [columnPointerCollision]
+
+        return rectCollisions.length > 0 ? rectCollisions : pointerCollisions
+    }, [columnIds])
 
     const onDragStart = (event: DragStartEvent) => {
         const leadId = event.active.id as string
@@ -121,18 +108,14 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
         if (activeId === overId) return
 
         const activeLead = leads.find(l => l.id === activeId)
-        const overLead = leads.find(l => l.id === overId)
-
         if (!activeLead) return
 
-        // Dropping over a column (empty or not)
-        if (columns.some(col => col.id === overId)) {
-            const overColumnId = overId as LeadStatus
-            if (activeLead.status !== overColumnId) {
+        if (columnIds.includes(overId)) {
+            if (activeLead.status !== overId) {
                 setLeads((leads) => {
                     const activeIndex = leads.findIndex((l) => l.id === activeId)
                     const newLeads = [...leads]
-                    newLeads[activeIndex] = { ...newLeads[activeIndex], status: overColumnId }
+                    newLeads[activeIndex] = { ...newLeads[activeIndex], status: overId }
                     return newLeads
                 })
             }
@@ -143,31 +126,21 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
         const { active, over } = event
         setActiveId(null)
 
-        if (!over) {
-            return
-        }
+        if (!over) return
 
         const activeId = active.id as string
         const overId = over.id as string
 
-        // Skip if dropped on itself
-        if (activeId === overId) {
-            return
-        }
+        if (activeId === overId) return
 
         const activeLead = leads.find(l => l.id === activeId)
-        if (!activeLead) {
-            return
-        }
+        if (!activeLead) return
 
-        let newStatus: LeadStatus | undefined
+        let newStatus: string | undefined
 
-        // Check if dropped over a column container (column IDs are 'new', 'processing', 'closed', 'rejected')
-        if (columns.some(col => col.id === overId)) {
-            newStatus = overId as LeadStatus
-        }
-        // If dropped over another card, inherit its status
-        else {
+        if (columnIds.includes(overId)) {
+            newStatus = overId
+        } else {
             const overLead = leads.find(l => l.id === overId)
             if (overLead) {
                 newStatus = overLead.status
@@ -175,9 +148,6 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
         }
 
         if (newStatus && originalStatus && originalStatus !== newStatus) {
-            // State already updated by onDragOver, no need for optimistic update here
-
-            // Server update (via Server Action)
             try {
                 const result = await updateLeadStatus(activeId, newStatus)
 
@@ -189,7 +159,6 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
             } catch (error: any) {
                 console.error("Failed to update status", error)
                 toast.error(`Ошибка: ${error.message || "Не удалось сохранить"}`)
-                // Revert to original status
                 setLeads(leads.map(l => l.id === activeId ? { ...l, status: originalStatus } : l))
             }
         }
@@ -230,6 +199,7 @@ export function LeadsKanban({ initialLeads, selectionMode, selectedIds, onSelect
                             selectionMode={selectionMode}
                             selectedIds={selectedIds}
                             onSelectLead={onSelectLead}
+                            onClaimLead={onClaimLead}
                         />
                     )
                 })}

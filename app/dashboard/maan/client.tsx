@@ -6,7 +6,8 @@ import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Plus, Search, X, CheckSquare } from "lucide-react"
 import { LeadCreateDialog } from "@/components/dashboard/lead-create-dialog"
-import { bulkUpdateLeads } from "@/app/dashboard/leads/actions"
+import { bulkUpdateLeads, claimLead } from "@/app/dashboard/leads/actions"
+import type { KanbanColumn } from "@/components/dashboard/leads-kanban"
 import { toast } from "sonner"
 import {
     Select,
@@ -31,9 +32,10 @@ interface MaanLeadsClientProps {
     data: any[]
     hasMore?: boolean
     totalCount?: number
+    columns?: KanbanColumn[]
 }
 
-export function MaanLeadsClient({ data, hasMore, totalCount }: MaanLeadsClientProps) {
+export function MaanLeadsClient({ data, hasMore, totalCount, columns }: MaanLeadsClientProps) {
     const [searchQuery, setSearchQuery] = React.useState("")
     const [sourceFilter, setSourceFilter] = React.useState<string>("all")
     const [managerFilter, setManagerFilter] = React.useState<string>("all")
@@ -51,6 +53,20 @@ export function MaanLeadsClient({ data, hasMore, totalCount }: MaanLeadsClientPr
             else next.add(id)
             return next
         })
+    }, [])
+
+    const handleClaimLead = React.useCallback(async (leadId: string) => {
+        try {
+            const result = await claimLead(leadId)
+            if (!result.success) {
+                toast.error(result.error || "Ошибка")
+                return
+            }
+            toast.success("Заявка взята!")
+            window.location.reload()
+        } catch (error: any) {
+            toast.error(error.message || "Ошибка при взятии заявки")
+        }
     }, [])
 
     const handleBulkUpdate = React.useCallback(async () => {
@@ -189,9 +205,11 @@ export function MaanLeadsClient({ data, hasMore, totalCount }: MaanLeadsClientPr
 
             <LeadsKanban
                 initialLeads={filteredData}
+                columns={columns}
                 selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onSelectLead={handleSelectLead}
+                onClaimLead={handleClaimLead}
             />
 
             {hasMore && (
@@ -219,10 +237,9 @@ export function MaanLeadsClient({ data, hasMore, totalCount }: MaanLeadsClientPr
                             <SelectValue placeholder="Статус" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="new">Новый</SelectItem>
-                            <SelectItem value="processing">В работе</SelectItem>
-                            <SelectItem value="closed">Закрыт</SelectItem>
-                            <SelectItem value="rejected">Отклонён</SelectItem>
+                            {(columns || []).map(col => (
+                                <SelectItem key={col.id} value={col.id}>{col.title}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     <Select value={bulkManager} onValueChange={setBulkManager}>

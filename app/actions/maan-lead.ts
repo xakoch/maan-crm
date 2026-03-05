@@ -37,24 +37,8 @@ export async function submitMaanLead(formData: {
         const tracking = formData.tracking || {}
         const maanTenantId = await getMaanTenantId()
 
-        // Find available MAAN managers
-        let assignedManagerId = null
-        let managerToSend = null
-
-        const { data: managers } = await supabase
-            .from("users")
-            .select("*")
-            .eq("tenant_id", maanTenantId)
-            .eq("role", "manager")
-            .eq("is_active", true)
-
-        if (managers && managers.length > 0) {
-            const randomIndex = Math.floor(Math.random() * managers.length)
-            managerToSend = managers[randomIndex]
-            assignedManagerId = managerToSend.id
-        }
-
-        // Insert Lead
+        // MAAN: no auto-assignment, managers claim leads manually
+        // Insert Lead as 'new' without manager
         const { data: lead, error } = await supabase
             .from('leads')
             .insert({
@@ -62,9 +46,9 @@ export async function submitMaanLead(formData: {
                 phone: formData.phone,
                 city: 'MAAN',
                 tenant_id: maanTenantId,
-                assigned_manager_id: assignedManagerId,
+                assigned_manager_id: null,
                 source: 'maan-form',
-                status: assignedManagerId ? 'processing' : 'new',
+                status: 'new',
                 utm_source: tracking.utm_source || null,
                 utm_medium: tracking.utm_medium || null,
                 utm_campaign: tracking.utm_campaign || null,
@@ -92,11 +76,6 @@ export async function submitMaanLead(formData: {
         const telegramGroupId = process.env.TELEGRAM_GROUP_ID;
         if (telegramGroupId) {
             await sendGroupLeadNotification(lead, telegramGroupId);
-        }
-
-        // Notify Manager
-        if (managerToSend) {
-            await sendLeadNotification(lead, managerToSend, supabase)
         }
 
         return { success: true }

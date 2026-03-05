@@ -63,8 +63,8 @@ export function MainNav({ className, role = 'manager', ...props }: MainNavProps)
 
     // Filter items based on role
     const filteredNav = mainNav.filter(item => {
-        // MAAN section only for super_admin
-        if (item.href === '/dashboard/maan' && role !== 'super_admin') {
+        // MAAN and Settings only for super_admin
+        if ((item.href === '/dashboard/maan' || item.href === '/dashboard/settings') && role !== 'super_admin') {
             return false;
         }
         // Managers see Dashboard, Analytics, Leads, and Clients

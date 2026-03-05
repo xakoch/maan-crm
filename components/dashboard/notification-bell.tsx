@@ -1,7 +1,7 @@
 "use client"
 
 import { useState, useEffect, useCallback } from "react"
-import { Bell } from "lucide-react"
+import { Bell, CheckCheck, ArrowRight } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import {
     Popover,
@@ -12,18 +12,14 @@ import { getRecentNotifications, type NotificationItem } from "@/app/actions/not
 import { formatDistanceToNow } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
-
-const STATUS_LABELS: Record<string, string> = {
-    new: "Новый",
-    processing: "В работе",
-    closed: "Закрыт",
-    rejected: "Отклонён",
-}
+import { useRouter } from "next/navigation"
 
 const STORAGE_KEY = "crm-notifications-last-seen"
 const POLL_INTERVAL = 30000
+const POPOVER_LIMIT = 5
 
 export function NotificationBell() {
+    const router = useRouter()
     const [notifications, setNotifications] = useState<NotificationItem[]>([])
     const [unreadCount, setUnreadCount] = useState(0)
     const [isOpen, setIsOpen] = useState(false)
@@ -52,12 +48,25 @@ export function NotificationBell() {
 
     const handleOpen = (open: boolean) => {
         setIsOpen(open)
-        if (open) {
-            // Mark as read
-            localStorage.setItem(STORAGE_KEY, new Date().toISOString())
-            setUnreadCount(0)
-        }
     }
+
+    const markAllRead = () => {
+        localStorage.setItem(STORAGE_KEY, new Date().toISOString())
+        setUnreadCount(0)
+        setNotifications([])
+        setIsOpen(false)
+    }
+
+    const viewAll = () => {
+        // Mark as read when navigating
+        localStorage.setItem(STORAGE_KEY, new Date().toISOString())
+        setUnreadCount(0)
+        setIsOpen(false)
+        router.push("/dashboard/notifications")
+    }
+
+    const displayedNotifications = notifications.slice(0, POPOVER_LIMIT)
+    const hasMore = notifications.length > POPOVER_LIMIT
 
     return (
         <Popover open={isOpen} onOpenChange={handleOpen}>
@@ -72,19 +81,34 @@ export function NotificationBell() {
                 </Button>
             </PopoverTrigger>
             <PopoverContent className="w-80 p-0" align="end">
-                <div className="p-3 border-b">
+                <div className="p-3 border-b flex items-center justify-between">
                     <h4 className="font-semibold text-sm">Уведомления</h4>
+                    {unreadCount > 0 && (
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 text-xs text-muted-foreground hover:text-foreground"
+                            onClick={markAllRead}
+                        >
+                            <CheckCheck className="h-3.5 w-3.5 mr-1" />
+                            Прочитать все
+                        </Button>
+                    )}
                 </div>
                 <div className="max-h-80 overflow-y-auto">
-                    {notifications.length === 0 ? (
+                    {displayedNotifications.length === 0 ? (
                         <div className="p-4 text-center text-sm text-muted-foreground">
                             Нет новых уведомлений
                         </div>
                     ) : (
-                        notifications.map((n) => (
+                        displayedNotifications.map((n) => (
                             <div
                                 key={n.id}
-                                className="p-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors"
+                                className="p-3 border-b last:border-b-0 hover:bg-muted/50 transition-colors cursor-pointer"
+                                onClick={() => {
+                                    setIsOpen(false)
+                                    router.push("/dashboard/notifications")
+                                }}
                             >
                                 <div className="flex justify-between items-start gap-2">
                                     <div className="text-sm">
@@ -96,7 +120,7 @@ export function NotificationBell() {
                                             n.new_status === "rejected" && "text-red-600",
                                             n.new_status === "processing" && "text-yellow-600",
                                         )}>
-                                            {STATUS_LABELS[n.new_status] || n.new_status}
+                                            {n.new_status}
                                         </span>
                                     </div>
                                 </div>
@@ -115,6 +139,19 @@ export function NotificationBell() {
                         ))
                     )}
                 </div>
+                {(displayedNotifications.length > 0 || hasMore) && (
+                    <div className="p-2 border-t">
+                        <Button
+                            variant="ghost"
+                            size="sm"
+                            className="w-full h-8 text-xs"
+                            onClick={viewAll}
+                        >
+                            Смотреть все
+                            <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        </Button>
+                    </div>
+                )}
             </PopoverContent>
         </Popover>
     )

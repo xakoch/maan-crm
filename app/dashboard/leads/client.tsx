@@ -28,13 +28,16 @@ const SOURCE_LABELS: Record<string, string> = {
     other: "Другое",
 }
 
+import type { KanbanColumn } from "@/components/dashboard/leads-kanban"
+
 interface LeadsClientProps {
     data: any[]
     hasMore?: boolean
     totalCount?: number
+    columns?: KanbanColumn[]
 }
 
-export function LeadsClient({ data, hasMore, totalCount }: LeadsClientProps) {
+export function LeadsClient({ data, hasMore, totalCount, columns }: LeadsClientProps) {
     const [searchQuery, setSearchQuery] = React.useState("")
     const [sourceFilter, setSourceFilter] = React.useState<string>("all")
     const [cityFilter, setCityFilter] = React.useState<string>("all")
@@ -236,6 +239,7 @@ export function LeadsClient({ data, hasMore, totalCount }: LeadsClientProps) {
 
             <LeadsKanban
                 initialLeads={filteredData}
+                columns={columns}
                 selectionMode={selectionMode}
                 selectedIds={selectedIds}
                 onSelectLead={handleSelectLead}
@@ -266,10 +270,9 @@ export function LeadsClient({ data, hasMore, totalCount }: LeadsClientProps) {
                             <SelectValue placeholder="Статус" />
                         </SelectTrigger>
                         <SelectContent>
-                            <SelectItem value="new">Новый</SelectItem>
-                            <SelectItem value="processing">В работе</SelectItem>
-                            <SelectItem value="closed">Закрыт</SelectItem>
-                            <SelectItem value="rejected">Отклонён</SelectItem>
+                            {(columns || []).map(col => (
+                                <SelectItem key={col.id} value={col.id}>{col.title}</SelectItem>
+                            ))}
                         </SelectContent>
                     </Select>
                     <Select value={bulkManager} onValueChange={setBulkManager}>

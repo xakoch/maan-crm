@@ -26,10 +26,8 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2 } from "lucide-react";
 
-// Обновленная схема валидации
 const formSchema = z.object({
-    // Изменили валидацию: либо email, либо строка минимум 2 символа (юзернейм)
-    login: z.string().min(2, "Введите Email или Имя пользователя"),
+    login: z.string().min(2, "Введите имя пользователя"),
     password: z.string().min(6, "Пароль должен содержать минимум 6 символов"),
 });
 
@@ -50,21 +48,11 @@ export default function LoginForm() {
         setIsSubmitting(true);
         try {
             const supabase = createClient();
-            let emailToSignIn = values.login;
+            const cleanedLogin = values.login.trim().toLowerCase();
+            const emailToSignIn = cleanedLogin.includes("@")
+                ? cleanedLogin
+                : `${cleanedLogin}@maancrm.local`;
 
-            // 1. Проверяем, является ли ввод Email-ом (используем trim)
-            const cleanedLogin = values.login.trim();
-            const isEmail = cleanedLogin.includes("@");
-
-            // 2. Если это НЕ Email, предполагаем, что это username дилера и добавляем домен
-            if (!isEmail) {
-                // Используем формат: username@maancrm.local (приводим к нижнему регистру для надежности)
-                emailToSignIn = `${cleanedLogin.toLowerCase()}@maancrm.local`;
-            } else {
-                emailToSignIn = cleanedLogin;
-            }
-
-            // 3. Выполняем вход через Supabase Auth (используя всегда Email)
             const { error } = await supabase.auth.signInWithPassword({
                 email: emailToSignIn,
                 password: values.password,
@@ -93,7 +81,7 @@ export default function LoginForm() {
             <CardHeader className="space-y-1">
                 <CardTitle className="text-2xl font-bold text-center">Вход в систему</CardTitle>
                 <CardDescription className="text-center">
-                    Войдите через Email или Имя пользователя
+                    Введите логин и пароль для входа
                 </CardDescription>
             </CardHeader>
             <CardContent>
@@ -104,10 +92,10 @@ export default function LoginForm() {
                             name="login"
                             render={({ field }) => (
                                 <FormItem>
-                                    <FormLabel>Email или Username</FormLabel>
+                                    <FormLabel>Логин</FormLabel>
                                     <FormControl>
                                         <Input
-                                            placeholder="admin@example.com или admin"
+                                            placeholder="admin"
                                             {...field}
                                             className="bg-white/50 dark:bg-black/20"
                                         />

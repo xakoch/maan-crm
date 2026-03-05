@@ -11,6 +11,7 @@ import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 
 import { autoCreateClientFromLead } from "@/app/actions/auto-create-client"
+import { deleteLead } from "@/app/dashboard/leads/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -54,7 +55,7 @@ const leadEditSchema = z.object({
     tenant_id: z.string().min(1, "Выберите дилера"),
     assigned_manager_id: z.string().optional(),
     source: z.string().min(1, "Источник обязателен"),
-    status: z.enum(['new', 'processing', 'closed', 'rejected']),
+    status: z.string().min(1, "Выберите статус"),
     comment: z.string().optional(),
     rejection_reason: z.string().optional(),
     conversion_value: z.number().optional(),
@@ -85,11 +86,12 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
     const [isDeleting, setIsDeleting] = useState(false)
     const [allDealers, setAllDealers] = useState<DealerInfo[]>([])
     const [managers, setManagers] = useState<{ id: string, full_name: string, telegram_id?: number | null }[]>([])
+    const [pipelineStages, setPipelineStages] = useState<{ slug: string; title: string }[]>([])
 
-    // Fetch dealers for select
+    // Fetch dealers and pipeline stages
     useEffect(() => {
+        const supabase = createClient()
         async function fetchDealers() {
-            const supabase = createClient()
             const { data } = await supabase
                 .from('tenants')
                 .select('id, name, city, region')
@@ -98,7 +100,21 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
 
             if (data) setAllDealers(data)
         }
+        async function fetchStages() {
+            const { data } = await supabase
+                .from('pipeline_stages')
+                .select('slug, title, sort_order')
+                .order('sort_order', { ascending: true })
+
+            if (data) {
+                // Deduplicate by slug (stages exist per crm_type)
+                const unique = new Map<string, { slug: string; title: string }>()
+                data.forEach(s => { if (!unique.has(s.slug)) unique.set(s.slug, s) })
+                setPipelineStages(Array.from(unique.values()))
+            }
+        }
         fetchDealers()
+        fetchStages()
     }, [])
 
     const form = useForm<LeadEditValues>({
@@ -215,9 +231,16 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
             const supabase = createClient()
 
             // Clean up optional fields based on status
-            const updates = {
-                ...values,
+            const updates: Record<string, any> = {
+                name: values.name,
+                phone: values.phone,
+                city: values.city,
+                region: values.region || null,
+                tenant_id: values.tenant_id,
                 assigned_manager_id: values.assigned_manager_id || null,
+                source: values.source,
+                status: values.status,
+                comment: values.comment || null,
                 rejection_reason: values.status === 'rejected' ? values.rejection_reason : null,
                 conversion_value: values.conversion_value || null,
                 closed_at: values.status === 'closed' && lead.status !== 'closed' ? new Date().toISOString() : (values.status !== 'closed' ? null : lead.closed_at),
@@ -304,18 +327,32 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
         }
     }
 
+    const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+    const [deleteReason, setDeleteReason] = useState("")
+    const [customReason, setCustomReason] = useState("")
+
+    const DELETE_REASONS = [
+        "Дубликат",
+        "Тестовая заявка",
+        "Спам / нецелевая",
+        "Ошибка при создании",
+        "Запрос клиента",
+        "Другое",
+    ]
+
     async function onDelete() {
+        const reason = deleteReason === "Другое" ? customReason.trim() : deleteReason
+        if (!reason) {
+            toast.error("Выберите причину удаления")
+            return
+        }
         setIsDeleting(true)
         try {
-            const supabase = createClient()
-            const { error } = await supabase
-                .from('leads')
-                .delete()
-                .eq('id', lead.id)
+            const result = await deleteLead(lead.id, reason)
+            if (!result.success) throw new Error(result.error)
 
-            if (error) throw error
-
-            toast.success("Лид удален")
+            toast.success("Лид удален и перемещен в архив")
+            setDeleteDialogOpen(false)
 
             if (onSuccess) {
                 onSuccess()
@@ -516,7 +553,7 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
                                     render={({ field }) => (
                                         <FormItem>
                                             <FormLabel>Ответственный менеджер</FormLabel>
-                                            <Select onValueChange={field.onChange} defaultValue={field.value} disabled={!selectedTenantId || managers.length === 0}>
+                                            <Select onValueChange={(val) => field.onChange(val === "__none__" ? "" : val)} value={field.value || "__none__"} disabled={!selectedTenantId || managers.length === 0}>
                                                 <FormControl>
                                                     <SelectTrigger className="w-full">
                                                         <div className="flex items-center gap-2">
@@ -526,6 +563,7 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
+                                                    <SelectItem value="__none__">Не назначен</SelectItem>
                                                     {managers.map(manager => (
                                                         <SelectItem key={manager.id} value={manager.id}>
                                                             <div className="flex items-center justify-between w-full">
@@ -558,10 +596,17 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
                                                     </SelectTrigger>
                                                 </FormControl>
                                                 <SelectContent>
-                                                    <SelectItem value="new">Новый</SelectItem>
-                                                    <SelectItem value="processing">В работе</SelectItem>
-                                                    <SelectItem value="closed">Закрыт</SelectItem>
-                                                    <SelectItem value="rejected">Отклонен</SelectItem>
+                                                    {pipelineStages.length > 0
+                                                        ? pipelineStages.map(s => (
+                                                            <SelectItem key={s.slug} value={s.slug}>{s.title}</SelectItem>
+                                                        ))
+                                                        : <>
+                                                            <SelectItem value="new">Новый</SelectItem>
+                                                            <SelectItem value="processing">В работе</SelectItem>
+                                                            <SelectItem value="closed">Закрыт</SelectItem>
+                                                            <SelectItem value="rejected">Отклонен</SelectItem>
+                                                        </>
+                                                    }
                                                 </SelectContent>
                                             </Select>
                                             <FormMessage />
@@ -766,24 +811,68 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
                                 Сохранить изменения
                             </Button>
 
-                            <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                    <Button variant="destructive" type="button" disabled={isDeleting}>
-                                        <Trash2 className="mr-2 h-4 w-4" />
-                                        Удалить лид
-                                    </Button>
-                                </AlertDialogTrigger>
+                            <Button
+                                variant="destructive"
+                                type="button"
+                                disabled={isDeleting}
+                                onClick={() => {
+                                    setDeleteReason("")
+                                    setCustomReason("")
+                                    setDeleteDialogOpen(true)
+                                }}
+                            >
+                                <Trash2 className="mr-2 h-4 w-4" />
+                                Удалить лид
+                            </Button>
+
+                            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
                                 <AlertDialogContent>
                                     <AlertDialogHeader>
-                                        <AlertDialogTitle>Вы абсолютно уверены?</AlertDialogTitle>
+                                        <AlertDialogTitle>Удалить лид?</AlertDialogTitle>
                                         <AlertDialogDescription>
-                                            Это действие нельзя отменить. Лид будет удален из базы данных навсегда.
+                                            Лид будет перемещен в архив удаленных. Выберите причину удаления.
                                         </AlertDialogDescription>
                                     </AlertDialogHeader>
+                                    <div className="space-y-3 py-2">
+                                        <div className="grid gap-2">
+                                            {DELETE_REASONS.map(reason => (
+                                                <label
+                                                    key={reason}
+                                                    className={`flex items-center gap-3 p-2.5 rounded-lg border cursor-pointer transition-colors ${
+                                                        deleteReason === reason
+                                                            ? "border-primary bg-primary/5"
+                                                            : "border-border hover:bg-muted/50"
+                                                    }`}
+                                                >
+                                                    <input
+                                                        type="radio"
+                                                        name="delete-reason"
+                                                        value={reason}
+                                                        checked={deleteReason === reason}
+                                                        onChange={() => setDeleteReason(reason)}
+                                                        className="accent-primary"
+                                                    />
+                                                    <span className="text-sm">{reason}</span>
+                                                </label>
+                                            ))}
+                                        </div>
+                                        {deleteReason === "Другое" && (
+                                            <Input
+                                                placeholder="Укажите причину..."
+                                                value={customReason}
+                                                onChange={e => setCustomReason(e.target.value)}
+                                                autoFocus
+                                            />
+                                        )}
+                                    </div>
                                     <AlertDialogFooter>
                                         <AlertDialogCancel>Отмена</AlertDialogCancel>
-                                        <AlertDialogAction onClick={onDelete} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">
-                                            Удалить
+                                        <AlertDialogAction
+                                            onClick={onDelete}
+                                            disabled={!deleteReason || (deleteReason === "Другое" && !customReason.trim()) || isDeleting}
+                                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                                        >
+                                            {isDeleting ? "Удаление..." : "Удалить"}
                                         </AlertDialogAction>
                                     </AlertDialogFooter>
                                 </AlertDialogContent>

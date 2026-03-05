@@ -12,13 +12,16 @@ export async function createManagerAction(formData: any) {
     );
 
     try {
-        const { full_name, email, phone, tenant_id, password, is_active } = formData;
+        const { full_name, username, email, phone, tenant_id, password, is_active } = formData;
+
+        // Generate email for Supabase Auth (uses username@maancrm.local if no email)
+        const authEmail = email && email.trim() ? email.trim() : `${username.trim().toLowerCase()}@maancrm.local`;
 
         // 1. Create Auth User
         const { data: authUser, error: authError } = await supabase.auth.admin.createUser({
-            email,
+            email: authEmail,
             password,
-            email_confirm: true, // Auto-confirm
+            email_confirm: true,
             user_metadata: { full_name }
         });
 
@@ -31,13 +34,13 @@ export async function createManagerAction(formData: any) {
             .from('users')
             .insert({
                 id: authUser.user.id,
-                email,
+                email: authEmail,
+                username: username.trim().toLowerCase(),
                 full_name,
                 phone,
                 tenant_id,
                 role: 'manager',
                 is_active,
-                // telegram info is filled later by bot
             });
 
         if (profileError) {
@@ -63,12 +66,11 @@ export async function updateManagerAction(id: string, formData: any) {
     );
 
     try {
-        // Update basic profile info
         const { error } = await supabase
             .from('users')
             .update({
                 full_name: formData.full_name,
-                email: formData.email,
+                username: formData.username?.trim().toLowerCase() || null,
                 phone: formData.phone,
                 tenant_id: formData.tenant_id,
                 is_active: formData.is_active,

@@ -45,7 +45,8 @@ import { createManagerAction, updateManagerAction } from "@/app/dashboard/manage
 
 const managerFormSchema = z.object({
     full_name: z.string().min(2, "Имя должно быть не короче 2 символов"),
-    email: z.string().email("Введите корректный email"),
+    username: z.string().min(2, "Логин должен быть не короче 2 символов"),
+    email: z.string().email("Введите корректный email").optional().or(z.literal("")),
     phone: z.string().min(9, "Телефон обязателен"),
     tenant_id: z.string().min(1, "Выберите дилера"),
     telegram_username: z.string().optional(),
@@ -89,6 +90,7 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
         resolver: zodResolver(managerFormSchema),
         defaultValues: initialData || {
             full_name: "",
+            username: "",
             email: "",
             phone: "",
             tenant_id: "",
@@ -234,10 +236,26 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                     />
                     <FormField
                         control={form.control}
+                        name="username"
+                        render={({ field }) => (
+                            <FormItem>
+                                <FormLabel>Логин</FormLabel>
+                                <FormControl>
+                                    <Input placeholder="ivan_manager" {...field} />
+                                </FormControl>
+                                <FormDescription>
+                                    Используется для входа в систему
+                                </FormDescription>
+                                <FormMessage />
+                            </FormItem>
+                        )}
+                    />
+                    <FormField
+                        control={form.control}
                         name="email"
                         render={({ field }) => (
                             <FormItem>
-                                <FormLabel>Email</FormLabel>
+                                <FormLabel>Email (необязательно)</FormLabel>
                                 <FormControl>
                                     <Input placeholder="ivan@example.com" {...field} />
                                 </FormControl>
