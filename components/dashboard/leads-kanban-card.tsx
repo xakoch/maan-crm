@@ -10,6 +10,17 @@ import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 import { cn } from "@/lib/utils"
 import { Database } from "@/types/database.types"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { useState } from "react"
 
 // Inline type to avoid import issues
 type Lead = Database['public']['Tables']['leads']['Row'] & {
@@ -38,6 +49,15 @@ const getSourceIcon = (source: string) => {
 }
 
 export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, onSelect, onClaim }: LeadCardProps) {
+    const [claimDialogOpen, setClaimDialogOpen] = useState(false)
+    const [isClaiming, setIsClaiming] = useState(false)
+
+    const handleClaimConfirm = async () => {
+        if (!onClaim) return
+        setIsClaiming(true)
+        onClaim(lead.id)
+    }
+
     const {
         attributes,
         listeners,
@@ -147,17 +167,43 @@ export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, on
                     </div>
                 </div>
                 {onClaim && !lead.assigned_manager_id && lead.status === 'new' && (
-                    <Button
-                        size="sm"
-                        className="w-full h-7 text-xs mt-1"
-                        onClick={(e) => {
-                            e.stopPropagation()
-                            onClaim(lead.id)
-                        }}
-                    >
-                        <HandMetal className="w-3 h-3 mr-1" />
-                        Взять заявку
-                    </Button>
+                    <>
+                        <Button
+                            size="sm"
+                            className="w-full h-7 text-xs mt-1"
+                            disabled={isClaiming}
+                            onClick={(e) => {
+                                e.stopPropagation()
+                                setClaimDialogOpen(true)
+                            }}
+                        >
+                            {isClaiming ? (
+                                <span className="animate-pulse">Берём...</span>
+                            ) : (
+                                <>
+                                    <HandMetal className="w-3 h-3 mr-1" />
+                                    Взять заявку
+                                </>
+                            )}
+                        </Button>
+                        <AlertDialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
+                            <AlertDialogContent>
+                                <AlertDialogHeader>
+                                    <AlertDialogTitle>Взять заявку?</AlertDialogTitle>
+                                    <AlertDialogDescription>
+                                        Вы берёте заявку от <span className="font-semibold text-foreground">{lead.name}</span> ({lead.phone}).
+                                        После этого заявка будет закреплена за вами и исчезнет у других менеджеров.
+                                    </AlertDialogDescription>
+                                </AlertDialogHeader>
+                                <AlertDialogFooter>
+                                    <AlertDialogCancel disabled={isClaiming}>Отмена</AlertDialogCancel>
+                                    <AlertDialogAction onClick={handleClaimConfirm} disabled={isClaiming}>
+                                        {isClaiming ? "Загрузка..." : "Да, взять!"}
+                                    </AlertDialogAction>
+                                </AlertDialogFooter>
+                            </AlertDialogContent>
+                        </AlertDialog>
+                    </>
                 )}
                 {lead.services && lead.services.length > 0 && (
                     <div className="flex flex-wrap gap-1 pt-1">

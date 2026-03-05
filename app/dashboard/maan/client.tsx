@@ -62,8 +62,11 @@ export function MaanLeadsClient({ data, hasMore, totalCount, columns }: MaanLead
                 toast.error(result.error || "Ошибка")
                 return
             }
-            toast.success("Заявка взята!")
-            window.location.reload()
+            toast.success("Заявка ваша! Удачи!", {
+                description: "Заявка закреплена за вами. Покажите лучший результат!",
+                duration: 4000,
+            })
+            setTimeout(() => window.location.reload(), 1500)
         } catch (error: any) {
             toast.error(error.message || "Ошибка при взятии заявки")
         }
