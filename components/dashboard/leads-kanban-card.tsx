@@ -186,8 +186,10 @@ export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, on
                                 </>
                             )}
                         </Button>
-                        <AlertDialog open={claimDialogOpen} onOpenChange={setClaimDialogOpen}>
-                            <AlertDialogContent>
+                        <AlertDialog open={claimDialogOpen} onOpenChange={(open) => {
+                            if (!open) setClaimDialogOpen(false)
+                        }}>
+                            <AlertDialogContent onClick={(e) => e.stopPropagation()}>
                                 <AlertDialogHeader>
                                     <AlertDialogTitle>Взять заявку?</AlertDialogTitle>
                                     <AlertDialogDescription>
@@ -196,8 +198,16 @@ export function LeadCard({ lead, isOverlay, onClick, selectionMode, selected, on
                                     </AlertDialogDescription>
                                 </AlertDialogHeader>
                                 <AlertDialogFooter>
-                                    <AlertDialogCancel disabled={isClaiming}>Отмена</AlertDialogCancel>
-                                    <AlertDialogAction onClick={handleClaimConfirm} disabled={isClaiming}>
+                                    <AlertDialogCancel disabled={isClaiming} onClick={(e) => e.stopPropagation()}>
+                                        Отмена
+                                    </AlertDialogCancel>
+                                    <AlertDialogAction
+                                        onClick={(e) => {
+                                            e.stopPropagation()
+                                            handleClaimConfirm()
+                                        }}
+                                        disabled={isClaiming}
+                                    >
                                         {isClaiming ? "Загрузка..." : "Да, взять!"}
                                     </AlertDialogAction>
                                 </AlertDialogFooter>

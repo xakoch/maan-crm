@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input"
 import { Plus, Search, X, CheckSquare } from "lucide-react"
 import { LeadCreateDialog } from "@/components/dashboard/lead-create-dialog"
 import { bulkUpdateLeads, claimLead } from "@/app/dashboard/leads/actions"
+import { fireCelebration } from "@/lib/confetti"
 import type { KanbanColumn } from "@/components/dashboard/leads-kanban"
 import { toast } from "sonner"
 import {
@@ -62,11 +63,12 @@ export function MaanLeadsClient({ data, hasMore, totalCount, columns }: MaanLead
                 toast.error(result.error || "Ошибка")
                 return
             }
+            fireCelebration()
             toast.success("Заявка ваша! Удачи!", {
                 description: "Заявка закреплена за вами. Покажите лучший результат!",
                 duration: 4000,
             })
-            setTimeout(() => window.location.reload(), 1500)
+            setTimeout(() => window.location.reload(), 2500)
         } catch (error: any) {
             toast.error(error.message || "Ошибка при взятии заявки")
         }
