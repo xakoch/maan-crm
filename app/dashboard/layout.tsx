@@ -7,6 +7,8 @@ import { UserNav } from "@/components/dashboard/user-nav";
 import { TeamSwitcher } from "@/components/dashboard/team-switcher";
 import { ModeToggle } from "@/components/ui/mode-toggle";
 import { NotificationBell } from "@/components/dashboard/notification-bell";
+import { Suspense } from "react";
+import { TopLoader } from "@/components/ui/top-loader";
 
 export default async function DashboardLayout({
     children,
@@ -48,6 +50,9 @@ export default async function DashboardLayout({
 
     return (
         <div className="flex-col md:flex">
+            <Suspense fallback={null}>
+                <TopLoader />
+            </Suspense>
             <div className="border-b">
                 <div className="flex h-16 items-center px-4">
                     {/* Only show team switcher for admins/dealers or make it read-only for managers */}

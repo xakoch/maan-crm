@@ -62,6 +62,7 @@ export function FormManagement({ initialForms }: FormManagementProps) {
     const [editingForm, setEditingForm] = useState<FormConfig | null>(null)
     const [deletingId, setDeletingId] = useState<string | null>(null)
     const [isSubmitting, setIsSubmitting] = useState(false)
+    const [togglingId, setTogglingId] = useState<string | null>(null)
 
     const [formState, setFormState] = useState({
         slug: "",
@@ -165,7 +166,9 @@ export function FormManagement({ initialForms }: FormManagementProps) {
     }
 
     async function handleToggleActive(form: FormConfig) {
+        setTogglingId(form.id)
         const result = await updateFormConfig(form.id, { is_active: !form.is_active })
+        setTogglingId(null)
         if (!result.success) {
             toast.error("Ошибка при обновлении")
             return
@@ -249,6 +252,7 @@ export function FormManagement({ initialForms }: FormManagementProps) {
                                 <Switch
                                     checked={form.is_active}
                                     onCheckedChange={() => handleToggleActive(form)}
+                                    disabled={togglingId === form.id}
                                 />
                             </TableCell>
                             <TableCell className="text-right">
@@ -273,9 +277,10 @@ export function FormManagement({ initialForms }: FormManagementProps) {
                                         variant="ghost"
                                         size="icon"
                                         onClick={() => cloneForm(form)}
+                                        disabled={isSubmitting}
                                         title="Клонировать форму"
                                     >
-                                        <CopyPlus className="h-4 w-4" />
+                                        {isSubmitting ? <Loader2 className="h-4 w-4 animate-spin" /> : <CopyPlus className="h-4 w-4" />}
                                     </Button>
                                     <Button
                                         variant="ghost"

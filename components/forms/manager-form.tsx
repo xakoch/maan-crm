@@ -71,6 +71,7 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
     const router = useRouter()
     const [isSubmitting, setIsSubmitting] = useState(false)
     const [isDeleting, setIsDeleting] = useState(false)
+    const [isResettingTg, setIsResettingTg] = useState(false)
     const [dealers, setDealers] = useState<{ id: string, name: string }[]>([])
 
     // ... fetchDealers effect ...
@@ -197,9 +198,11 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                                     type="button"
                                     variant="outline"
                                     size="sm"
+                                    disabled={isResettingTg}
                                     className="text-xs border-orange-200 text-orange-700 hover:bg-orange-100"
                                     onClick={async () => {
                                         if (confirm("Вы уверены, что хотите сбросить привязку к Telegram?")) {
+                                            setIsResettingTg(true)
                                             const supabase = createClient();
                                             const { error } = await supabase
                                                 .from('users')
@@ -210,10 +213,11 @@ export function ManagerForm({ initialData }: ManagerFormProps) {
                                                 toast.success("Привязка сброшена");
                                                 router.refresh();
                                             }
+                                            setIsResettingTg(false)
                                         }
                                     }}
                                 >
-                                    Сбросить
+                                    {isResettingTg ? "Сброс..." : "Сбросить"}
                                 </Button>
                             )}
                         </div>
