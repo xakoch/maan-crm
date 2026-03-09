@@ -59,7 +59,8 @@ export async function createFormConfig(formData: {
         .insert(formData)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -82,7 +83,8 @@ export async function updateFormConfig(id: string, formData: {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -96,7 +98,8 @@ export async function deleteFormConfig(id: string) {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -131,7 +134,8 @@ export async function createRegion(formData: {
         .insert(formData)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -152,7 +156,8 @@ export async function updateRegion(id: string, formData: {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -186,7 +191,8 @@ export async function createCity(formData: {
         .insert(formData)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -206,7 +212,8 @@ export async function updateCity(id: string, formData: {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -220,7 +227,8 @@ export async function deleteCity(id: string) {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
     return { success: true }
 }
 
@@ -265,9 +273,10 @@ export async function createPipelineStage(formData: {
         })
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
-    revalidatePath('/dashboard/leads')
-    revalidatePath('/dashboard/maan')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
+    revalidatePath('/lumara/dashboard/leads')
+    revalidatePath('/maan/dashboard/leads')
     return { success: true }
 }
 
@@ -287,9 +296,10 @@ export async function updatePipelineStage(id: string, formData: {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
-    revalidatePath('/dashboard/leads')
-    revalidatePath('/dashboard/maan')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
+    revalidatePath('/lumara/dashboard/leads')
+    revalidatePath('/maan/dashboard/leads')
     return { success: true }
 }
 
@@ -324,9 +334,10 @@ export async function deletePipelineStage(id: string) {
         .eq('id', id)
 
     if (error) return { success: false, error: error.message }
-    revalidatePath('/dashboard/settings')
-    revalidatePath('/dashboard/leads')
-    revalidatePath('/dashboard/maan')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
+    revalidatePath('/lumara/dashboard/leads')
+    revalidatePath('/maan/dashboard/leads')
     return { success: true }
 }
 
@@ -345,9 +356,10 @@ export async function reorderPipelineStages(orderedIds: string[]) {
     const failed = results.find(r => r.error)
     if (failed?.error) return { success: false, error: failed.error.message }
 
-    revalidatePath('/dashboard/settings')
-    revalidatePath('/dashboard/leads')
-    revalidatePath('/dashboard/maan')
+    revalidatePath('/lumara/dashboard/settings')
+    revalidatePath('/maan/dashboard/settings')
+    revalidatePath('/lumara/dashboard/leads')
+    revalidatePath('/maan/dashboard/leads')
     return { success: true }
 }
 

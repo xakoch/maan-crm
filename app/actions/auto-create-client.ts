@@ -87,8 +87,10 @@ export async function autoCreateClientFromLead(leadId: string) {
             return { success: false, error: clientError.message }
         }
 
-        revalidatePath('/dashboard/clients')
-        revalidatePath('/dashboard/companies')
+        revalidatePath('/lumara/dashboard/clients')
+        revalidatePath('/maan/dashboard/clients')
+        revalidatePath('/lumara/dashboard/companies')
+        revalidatePath('/maan/dashboard/companies')
         return { success: true, data: client }
     } catch (e: any) {
         console.error("Auto-create client exception:", e)

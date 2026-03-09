@@ -41,7 +41,7 @@ import {
 } from "@/components/ui/alert-dialog"
 import { createClient } from "../../lib/supabase/client"
 
-import { createManagerAction, updateManagerAction } from "@/app/dashboard/managers/actions"
+import { createManagerAction, updateManagerAction } from "@/app/[crm]/dashboard/managers/actions"
 
 const managerFormSchema = z.object({
     full_name: z.string().min(2, "Имя должно быть не короче 2 символов"),

@@ -1,7 +1,7 @@
 "use client"
 
 import { useRouter } from "next/navigation"
-import { updateLeadStatus } from "@/app/dashboard/leads/actions"
+import { updateLeadStatus } from "@/app/[crm]/dashboard/leads/actions"
 import { useState, useEffect, useMemo, useCallback } from "react"
 import {
     DndContext,
@@ -15,7 +15,6 @@ import {
     CollisionDetection,
     DragStartEvent,
     DragEndEvent,
-    DragOverEvent,
     defaultDropAnimationSideEffects,
     DropAnimation,
 } from "@dnd-kit/core"
@@ -67,26 +66,29 @@ export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode,
                 distance: 5,
             },
         }),
-        useSensor(TouchSensor)
+        useSensor(TouchSensor, {
+            activationConstraint: {
+                delay: 250,
+                tolerance: 5,
+            },
+        })
     )
 
     const [originalStatus, setOriginalStatus] = useState<string | null>(null)
 
-    // Custom collision detection that prioritizes columns over cards
+    // Collision detection: find the column the pointer is over
     const customCollisionDetection: CollisionDetection = useCallback((args) => {
-        const rectCollisions = rectIntersection(args)
-        const columnCollision = rectCollisions.find(collision =>
-            columnIds.includes(collision.id as string)
-        )
+        // Try pointer first for precise column detection
+        const pointerCollisions = pointerWithin(args)
+        const columnCollision = pointerCollisions.find(c => columnIds.includes(c.id as string))
         if (columnCollision) return [columnCollision]
 
-        const pointerCollisions = pointerWithin(args)
-        const columnPointerCollision = pointerCollisions.find(collision =>
-            columnIds.includes(collision.id as string)
-        )
-        if (columnPointerCollision) return [columnPointerCollision]
+        // Fall back to rect intersection
+        const rectCollisions = rectIntersection(args)
+        const columnRect = rectCollisions.find(c => columnIds.includes(c.id as string))
+        if (columnRect) return [columnRect]
 
-        return rectCollisions.length > 0 ? rectCollisions : pointerCollisions
+        return pointerCollisions.length > 0 ? pointerCollisions : rectCollisions
     }, [columnIds])
 
     const onDragStart = (event: DragStartEvent) => {
@@ -98,58 +100,32 @@ export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode,
         setActiveId(leadId)
     }
 
-    const onDragOver = (event: DragOverEvent) => {
-        const { active, over } = event
-        if (!over) return
-
-        const activeId = active.id as string
-        const overId = over.id as string
-
-        if (activeId === overId) return
-
-        const activeLead = leads.find(l => l.id === activeId)
-        if (!activeLead) return
-
-        if (columnIds.includes(overId)) {
-            if (activeLead.status !== overId) {
-                setLeads((leads) => {
-                    const activeIndex = leads.findIndex((l) => l.id === activeId)
-                    const newLeads = [...leads]
-                    newLeads[activeIndex] = { ...newLeads[activeIndex], status: overId }
-                    return newLeads
-                })
-            }
-        }
-    }
-
     const onDragEnd = async (event: DragEndEvent) => {
         const { active, over } = event
         setActiveId(null)
 
-        if (!over) return
-
-        const activeId = active.id as string
-        const overId = over.id as string
-
-        if (activeId === overId) return
-
-        const activeLead = leads.find(l => l.id === activeId)
-        if (!activeLead) return
-
-        let newStatus: string | undefined
-
-        if (columnIds.includes(overId)) {
-            newStatus = overId
-        } else {
-            const overLead = leads.find(l => l.id === overId)
-            if (overLead) {
-                newStatus = overLead.status
-            }
+        if (!over) {
+            setOriginalStatus(null)
+            return
         }
 
-        if (newStatus && originalStatus && originalStatus !== newStatus) {
+        const activeLeadId = active.id as string
+        const overId = over.id as string
+
+        // Only columns are valid drop targets
+        if (!columnIds.includes(overId)) {
+            setOriginalStatus(null)
+            return
+        }
+
+        const newStatus = overId
+
+        if (originalStatus && originalStatus !== newStatus) {
+            // Optimistic UI update
+            setLeads(prev => prev.map(l => l.id === activeLeadId ? { ...l, status: newStatus } : l))
+
             try {
-                const result = await updateLeadStatus(activeId, newStatus)
+                const result = await updateLeadStatus(activeLeadId, newStatus)
 
                 if (!result.success) {
                     throw new Error(result.error)
@@ -159,7 +135,8 @@ export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode,
             } catch (error: any) {
                 console.error("Failed to update status", error)
                 toast.error(`Ошибка: ${error.message || "Не удалось сохранить"}`)
-                setLeads(leads.map(l => l.id === activeId ? { ...l, status: originalStatus } : l))
+                // Rollback
+                setLeads(prev => prev.map(l => l.id === activeLeadId ? { ...l, status: originalStatus! } : l))
             }
         }
 
@@ -182,10 +159,14 @@ export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode,
             sensors={sensors}
             collisionDetection={customCollisionDetection}
             onDragStart={onDragStart}
-            onDragOver={onDragOver}
             onDragEnd={onDragEnd}
+            autoScroll={{
+                enabled: true,
+                threshold: { x: 0.15, y: 0.15 },
+                acceleration: 10,
+            }}
         >
-            <div className="flex flex-col md:flex-row gap-4 h-[calc(100vh-200px)] overflow-x-auto pb-4">
+            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
                 {columns.map((col) => {
                     const columnLeads = leads.filter(l => l.status === col.id)
                     return (

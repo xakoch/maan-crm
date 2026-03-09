@@ -27,7 +27,7 @@ import {
     SelectValue,
 } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
-import { createLead } from "@/app/dashboard/leads/actions"
+import { createLead } from "@/app/[crm]/dashboard/leads/actions"
 import { checkDuplicatePhone, type DuplicateLeadInfo } from "@/app/actions/check-duplicate"
 import { DuplicateWarningDialog } from "@/components/dashboard/duplicate-warning-dialog"
 import { Badge } from "@/components/ui/badge"

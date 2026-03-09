@@ -15,7 +15,7 @@ export interface DashboardStats {
     }[];
 }
 
-export async function getDashboardStats(): Promise<DashboardStats> {
+export async function getDashboardStats(overrideTenantId?: string): Promise<DashboardStats> {
     const supabase = await createClient();
 
     // Get current user and role
@@ -30,13 +30,16 @@ export async function getDashboardStats(): Promise<DashboardStats> {
 
     // Base query builder helper
     const applyFilter = (query: any) => {
+        // If an explicit tenantId is passed (e.g. for MAAN CRM), use it
+        if (overrideTenantId) {
+            query = query.eq('tenant_id', overrideTenantId);
+        }
         // 1. Filter by Tenant (for everyone except super_admin)
-        if (profile?.role !== 'super_admin' && profile?.tenant_id) {
+        else if (profile?.role !== 'super_admin' && profile?.tenant_id) {
             query = query.eq('tenant_id', profile.tenant_id);
         }
 
         // 2. Filter by Manager (OWN data only)
-        // Managers see stats only for leads assigned to them
         if (profile?.role === 'manager') {
             query = query.eq('assigned_manager_id', user.id);
         }
@@ -75,13 +78,8 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         .select('created_at')
         .gte('created_at', sixMonthsAgo.toISOString());
 
-    // Apply filter manually because applyFilter returns a modified query, simpler to just re-apply logic
-    if (profile?.role !== 'super_admin' && profile?.tenant_id) {
-        leadsQuery = leadsQuery.eq('tenant_id', profile.tenant_id);
-    }
-    if (profile?.role === 'manager') {
-        leadsQuery = leadsQuery.eq('assigned_manager_id', user.id);
-    }
+    // Apply same tenant/role filtering
+    leadsQuery = applyFilter(leadsQuery);
 
     const { data: leadsData } = await leadsQuery;
 
@@ -114,12 +112,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
         .order('created_at', { ascending: false })
         .limit(5);
 
-    if (profile?.role !== 'super_admin' && profile?.tenant_id) {
-        recentQuery = recentQuery.eq('tenant_id', profile.tenant_id);
-    }
-    if (profile?.role === 'manager') {
-        recentQuery = recentQuery.eq('assigned_manager_id', user.id);
-    }
+    recentQuery = applyFilter(recentQuery);
 
     const { data: recentLeadsData } = await recentQuery;
 

@@ -62,16 +62,19 @@ export default function LoginForm() {
                 throw error;
             }
 
-            toast.success("Вход выполнен успешно!");
+            toast.success("Вход выполнен успешно!", {
+                description: "Перенаправляем в систему...",
+            });
             router.push("/dashboard");
             router.refresh();
+            // Don't reset isSubmitting — keep spinner until redirect completes
+            return;
         } catch (error: any) {
             console.error(error);
             const errorMessage = error.message === "Invalid login credentials"
                 ? "Неверный логин или пароль"
                 : error.message || "Ошибка входа";
             toast.error(errorMessage);
-        } finally {
             setIsSubmitting(false);
         }
     }
@@ -148,7 +151,7 @@ export default function LoginForm() {
                             {isSubmitting ? (
                                 <>
                                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                                    Вход...
+                                    Входим в систему...
                                 </>
                             ) : (
                                 "Войти"

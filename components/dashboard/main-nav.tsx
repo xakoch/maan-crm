@@ -3,53 +3,50 @@
 import { usePathname } from "next/navigation";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { useCrm, CrmType } from "@/lib/crm-context";
 
-import { LayoutDashboard, Users, UserCog, Building2, Settings, BarChart3, Crown, UserCheck, Building } from "lucide-react";
+import { LayoutDashboard, Users, UserCog, Building2, Settings, BarChart3, UserCheck, Building } from "lucide-react";
 
-const mainNav = [
+const navItems = [
     {
         title: "Дашборд",
-        href: "/dashboard",
+        path: "",
         icon: LayoutDashboard,
     },
     {
         title: "Аналитика",
-        href: "/dashboard/analytics",
+        path: "/analytics",
         icon: BarChart3,
     },
     {
         title: "Лиды",
-        href: "/dashboard/leads",
+        path: "/leads",
         icon: Users,
     },
     {
         title: "Клиенты",
-        href: "/dashboard/clients",
+        path: "/clients",
         icon: UserCheck,
     },
     {
         title: "Компании",
-        href: "/dashboard/companies",
+        path: "/companies",
         icon: Building,
     },
     {
         title: "Дилеры",
-        href: "/dashboard/dealers",
+        path: "/dealers",
         icon: Building2,
+        crmOnly: 'lumara' as CrmType,
     },
     {
         title: "Менеджеры",
-        href: "/dashboard/managers",
+        path: "/managers",
         icon: UserCog,
     },
     {
-        title: "MAAN",
-        href: "/dashboard/maan",
-        icon: Crown,
-    },
-    {
         title: "Настройки",
-        href: "/dashboard/settings",
+        path: "/settings",
         icon: Settings,
     },
 ];
@@ -60,18 +57,23 @@ interface MainNavProps extends React.HTMLAttributes<HTMLElement> {
 
 export function MainNav({ className, role = 'manager', ...props }: MainNavProps) {
     const pathname = usePathname();
+    const { crm, basePath } = useCrm();
 
-    // Filter items based on role
-    const filteredNav = mainNav.filter(item => {
-        // MAAN and Settings only for super_admin
-        if ((item.href === '/dashboard/maan' || item.href === '/dashboard/settings') && role !== 'super_admin') {
+    // Filter items based on role and CRM
+    const filteredNav = navItems.filter(item => {
+        // CRM-specific items (e.g., Dealers only for Lumara)
+        if (item.crmOnly && item.crmOnly !== crm) {
+            return false;
+        }
+        // Settings only for super_admin
+        if (item.path === '/settings' && role !== 'super_admin') {
             return false;
         }
         // Managers see Dashboard, Analytics, Leads, and Clients
         if (role === 'manager') {
-            return ['/dashboard', '/dashboard/analytics', '/dashboard/leads', '/dashboard/clients'].includes(item.href);
+            return ['', '/analytics', '/leads', '/clients'].includes(item.path);
         }
-        // Others see everything (except MAAN filtered above)
+        // Others see everything (except CRM-filtered above)
         return true;
     });
 
@@ -80,21 +82,28 @@ export function MainNav({ className, role = 'manager', ...props }: MainNavProps)
             className={cn("flex items-center space-x-4 lg:space-x-6", className)}
             {...props}
         >
-            {filteredNav.map((item) => (
-                <Link
-                    key={item.href}
-                    href={item.href}
-                    className={cn(
-                        "flex items-center text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md mr-[10px] last:mr-0",
-                        pathname === item.href || (item.href !== "/dashboard" && pathname.startsWith(item.href))
-                            ? "bg-primary text-primary-foreground hover:text-primary-foreground"
-                            : "text-muted-foreground"
-                    )}
-                >
-                    <item.icon className="mr-2 h-4 w-4" />
-                    {item.title}
-                </Link>
-            ))}
+            {filteredNav.map((item) => {
+                const href = basePath + item.path;
+                const isActive = item.path === ''
+                    ? pathname === basePath
+                    : pathname.startsWith(href);
+
+                return (
+                    <Link
+                        key={href}
+                        href={href}
+                        className={cn(
+                            "flex items-center text-sm font-medium transition-colors hover:text-primary px-3 py-2 rounded-md mr-[10px] last:mr-0",
+                            isActive
+                                ? "bg-primary text-primary-foreground hover:text-primary-foreground"
+                                : "text-muted-foreground"
+                        )}
+                    >
+                        <item.icon className="mr-2 h-4 w-4" />
+                        {item.title}
+                    </Link>
+                );
+            })}
         </nav>
     );
 }

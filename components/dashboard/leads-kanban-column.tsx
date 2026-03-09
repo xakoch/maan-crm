@@ -1,7 +1,6 @@
 "use client"
 
 import { useDroppable } from "@dnd-kit/core"
-import { SortableContext, verticalListSortingStrategy } from "@dnd-kit/sortable"
 import { LeadCard } from "./leads-kanban-card"
 import { cn } from "@/lib/utils"
 import { Database } from "@/types/database.types"
@@ -25,12 +24,15 @@ interface LeadColumnProps {
 }
 
 export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode, selectedIds, onSelectLead, onClaimLead }: LeadColumnProps) {
-    const { setNodeRef } = useDroppable({
+    const { setNodeRef, isOver } = useDroppable({
         id: id,
     })
 
     return (
-        <div className="flex flex-col flex-1 min-w-[300px] h-full rounded-xl bg-muted/30 border border-border/50 backdrop-blur-sm">
+        <div className={cn(
+            "flex flex-col flex-1 min-w-[300px] h-full rounded-xl bg-muted/30 border border-border/50 backdrop-blur-sm transition-colors",
+            isOver && "ring-2 ring-primary/50 bg-primary/5"
+        )}>
             <div className={cn("p-4 border-b flex items-center justify-between rounded-t-xl sticky top-0 bg-background/80", color)}>
                 <h3 className="font-semibold">{title}</h3>
                 <span className="text-xs font-mono bg-background/50 px-2 py-1 rounded-md border shadow-sm">
@@ -40,24 +42,19 @@ export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode
 
             <div
                 ref={setNodeRef}
-                className="flex-1 p-2 overflow-y-auto space-y-2 scrollbar-hide"
+                className="flex-1 p-2 space-y-2 overflow-y-auto"
             >
-                <SortableContext
-                    items={leads.map(l => l.id)}
-                    strategy={verticalListSortingStrategy}
-                >
-                    {leads.map((lead) => (
-                        <LeadCard
-                            key={lead.id}
-                            lead={lead}
-                            onClick={() => onLeadClick?.(lead)}
-                            selectionMode={selectionMode}
-                            selected={selectedIds?.has(lead.id)}
-                            onSelect={onSelectLead}
-                            onClaim={onClaimLead}
-                        />
-                    ))}
-                </SortableContext>
+                {leads.map((lead) => (
+                    <LeadCard
+                        key={lead.id}
+                        lead={lead}
+                        onClick={() => onLeadClick?.(lead)}
+                        selectionMode={selectionMode}
+                        selected={selectedIds?.has(lead.id)}
+                        onSelect={onSelectLead}
+                        onClaim={onClaimLead}
+                    />
+                ))}
 
                 {leads.length === 0 && (
                     <div className="h-24 flex items-center justify-center text-muted-foreground/40 text-sm border-2 border-dashed border-muted-foreground/10 rounded-lg m-2">

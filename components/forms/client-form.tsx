@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/alert-dialog"
 
 import { createClient } from "@/lib/supabase/client"
-import { createClientRecord, updateClientRecord, deleteClientRecord } from "@/app/dashboard/clients/actions"
+import { createClientRecord, updateClientRecord, deleteClientRecord } from "@/app/[crm]/dashboard/clients/actions"
 
 const clientSchema = z.object({
     name: z.string().min(2, "Имя обязательно"),

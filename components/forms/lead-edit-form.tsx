@@ -11,7 +11,7 @@ import { format } from "date-fns"
 import { ru } from "date-fns/locale"
 
 import { autoCreateClientFromLead } from "@/app/actions/auto-create-client"
-import { deleteLead } from "@/app/dashboard/leads/actions"
+import { deleteLead } from "@/app/[crm]/dashboard/leads/actions"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import {
@@ -96,6 +96,7 @@ export function LeadEditForm({ lead, history = [], onSuccess, backUrl = "/dashbo
                 .from('tenants')
                 .select('id, name, city, region')
                 .eq('status', 'active')
+                .eq('is_maan', false)
                 .order('name')
 
             if (data) setAllDealers(data)

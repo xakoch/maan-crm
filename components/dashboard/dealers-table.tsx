@@ -1,8 +1,9 @@
 "use client"
 
 import { useState, useMemo } from "react"
+import { useParams } from "next/navigation"
 import { DataTable } from "@/components/ui/data-table"
-import { columns } from "@/app/dashboard/dealers/columns"
+import { getColumns } from "@/app/[crm]/dashboard/dealers/columns"
 import { DealerFilters } from "./dealer-filters"
 import { Database } from "@/types/database.types"
 
@@ -13,8 +14,12 @@ interface DealersTableProps {
 }
 
 export function DealersTable({ data }: DealersTableProps) {
+    const params = useParams()
+    const crm = (params?.crm as string) || 'lumara'
     const [cityFilter, setCityFilter] = useState("all")
     const [statusFilter, setStatusFilter] = useState("all")
+
+    const columns = useMemo(() => getColumns(crm), [crm])
 
     const filteredData = useMemo(() => {
         return data.filter((dealer) => {
@@ -29,7 +34,7 @@ export function DealersTable({ data }: DealersTableProps) {
             columns={columns}
             data={filteredData}
             searchKey="name"
-            createLink="/dashboard/dealers/create"
+            createLink={`/${crm}/dashboard/dealers/create`}
             createLabel="Добавить дилера"
             filters={
                 <DealerFilters

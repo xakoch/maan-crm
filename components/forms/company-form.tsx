@@ -39,7 +39,7 @@ import {
     AlertDialogTrigger,
 } from "@/components/ui/alert-dialog"
 
-import { createCompany, updateCompany, deleteCompany } from "@/app/dashboard/companies/actions"
+import { createCompany, updateCompany, deleteCompany } from "@/app/[crm]/dashboard/companies/actions"
 
 const companySchema = z.object({
     name: z.string().min(2, "Название обязательно"),
