@@ -1,0 +1,12 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "next-dev",
+      "runtimeExecutable": "cmd.exe",
+      "runtimeArgs": ["/c", "yarn", "dev"],
+      "port": 3000,
+      "autoPort": true
+    }
+  ]
+}

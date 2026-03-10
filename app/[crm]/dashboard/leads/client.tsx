@@ -5,9 +5,9 @@ import { useRouter } from "next/navigation"
 import { LeadsKanban } from "@/components/dashboard/leads-kanban"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { Plus, Search, X, CheckSquare } from "lucide-react"
+import { Plus, Search, X, CheckSquare, Trash2 } from "lucide-react"
 import { LeadCreateDialog } from "@/components/dashboard/lead-create-dialog"
-import { bulkUpdateLeads } from "./actions"
+import { bulkUpdateLeads, bulkDeleteLeads } from "./actions"
 import { toast } from "sonner"
 import {
     Select,
@@ -16,6 +16,16 @@ import {
     SelectTrigger,
     SelectValue,
 } from "@/components/ui/select"
+import {
+    AlertDialog,
+    AlertDialogAction,
+    AlertDialogCancel,
+    AlertDialogContent,
+    AlertDialogDescription,
+    AlertDialogFooter,
+    AlertDialogHeader,
+    AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
 
 const SOURCE_LABELS: Record<string, string> = {
     website: "Сайт",
@@ -35,9 +45,10 @@ interface LeadsClientProps {
     hasMore?: boolean
     totalCount?: number
     columns?: KanbanColumn[]
+    userRole?: string | null
 }
 
-export function LeadsClient({ data, hasMore, totalCount, columns }: LeadsClientProps) {
+export function LeadsClient({ data, hasMore, totalCount, columns, userRole }: LeadsClientProps) {
     const [searchQuery, setSearchQuery] = React.useState("")
     const [sourceFilter, setSourceFilter] = React.useState<string>("all")
     const [cityFilter, setCityFilter] = React.useState<string>("all")
@@ -49,6 +60,9 @@ export function LeadsClient({ data, hasMore, totalCount, columns }: LeadsClientP
     const [bulkStatus, setBulkStatus] = React.useState<string>("")
     const [bulkManager, setBulkManager] = React.useState<string>("")
     const [isBulkUpdating, setIsBulkUpdating] = React.useState(false)
+    const [isBulkDeleting, setIsBulkDeleting] = React.useState(false)
+    const [deleteDialogOpen, setDeleteDialogOpen] = React.useState(false)
+    const isSuperAdmin = userRole === 'super_admin'
 
     const handleSelectLead = React.useCallback((id: string) => {
         setSelectedIds(prev => {
@@ -84,6 +98,24 @@ export function LeadsClient({ data, hasMore, totalCount, columns }: LeadsClientP
             setIsBulkUpdating(false)
         }
     }, [selectedIds, bulkStatus, bulkManager])
+
+    const handleBulkDelete = React.useCallback(async () => {
+        if (selectedIds.size === 0) return
+        setIsBulkDeleting(true)
+        try {
+            const result = await bulkDeleteLeads(Array.from(selectedIds))
+            if (!result.success) throw new Error(result.error)
+            toast.success(`Удалено: ${result.deletedCount} лидов`)
+            setSelectedIds(new Set())
+            setSelectionMode(false)
+            setDeleteDialogOpen(false)
+            window.location.reload()
+        } catch (error: any) {
+            toast.error(error.message || "Ошибка удаления")
+        } finally {
+            setIsBulkDeleting(false)
+        }
+    }, [selectedIds])
 
     // Extract unique sources from data
     const sources = React.useMemo(() => {
@@ -288,8 +320,41 @@ export function LeadsClient({ data, hasMore, totalCount, columns }: LeadsClientP
                     <Button onClick={handleBulkUpdate} disabled={isBulkUpdating}>
                         {isBulkUpdating ? "Обновление..." : "Применить"}
                     </Button>
+                    {isSuperAdmin && (
+                        <Button
+                            variant="destructive"
+                            onClick={() => setDeleteDialogOpen(true)}
+                            disabled={isBulkDeleting}
+                        >
+                            <Trash2 className="mr-2 h-4 w-4" />
+                            {isBulkDeleting ? "Удаление..." : "Удалить"}
+                        </Button>
+                    )}
                 </div>
             )}
+
+            {/* Bulk delete confirmation dialog */}
+            <AlertDialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+                <AlertDialogContent>
+                    <AlertDialogHeader>
+                        <AlertDialogTitle>Удалить выбранные лиды?</AlertDialogTitle>
+                        <AlertDialogDescription>
+                            Вы собираетесь удалить <span className="font-semibold text-foreground">{selectedIds.size}</span> лидов.
+                            Лиды будут перемещены в архив удалённых.
+                        </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                        <AlertDialogCancel disabled={isBulkDeleting}>Отмена</AlertDialogCancel>
+                        <AlertDialogAction
+                            onClick={handleBulkDelete}
+                            disabled={isBulkDeleting}
+                            className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                        >
+                            {isBulkDeleting ? "Удаление..." : `Удалить (${selectedIds.size})`}
+                        </AlertDialogAction>
+                    </AlertDialogFooter>
+                </AlertDialogContent>
+            </AlertDialog>
 
             <LeadCreateDialog
                 open={isCreateDialogOpen}

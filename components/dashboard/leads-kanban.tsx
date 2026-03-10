@@ -166,7 +166,7 @@ export function LeadsKanban({ initialLeads, columns: columnsProp, selectionMode,
                 acceleration: 10,
             }}
         >
-            <div className="flex flex-col md:flex-row gap-4 overflow-x-auto pb-4 h-[calc(100vh-200px)]">
+            <div className="flex flex-col md:flex-row gap-4 pb-4">
                 {columns.map((col) => {
                     const columnLeads = leads.filter(l => l.status === col.id)
                     return (

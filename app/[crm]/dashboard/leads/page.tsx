@@ -16,7 +16,7 @@ async function getData(crm: CrmType, loadAll: boolean = false) {
     const { data: { user } } = await supabase.auth.getUser()
 
     if (!user) {
-        return { leads: [], totalCount: 0 }
+        return { leads: [], totalCount: 0, userRole: null }
     }
 
     // Get user details to check role and tenant
@@ -81,7 +81,7 @@ async function getData(crm: CrmType, loadAll: boolean = false) {
         )
     }
 
-    return { leads, totalCount }
+    return { leads, totalCount, userRole: userDetails?.role || null }
 }
 
 interface LeadsPageProps {
@@ -94,7 +94,7 @@ export default async function LeadsPage({ params, searchParams }: LeadsPageProps
     const crmType = crm as CrmType
     const sp = await searchParams
     const loadAll = sp.all === 'true'
-    const [{ leads, totalCount }, stages] = await Promise.all([
+    const [{ leads, totalCount, userRole }, stages] = await Promise.all([
         getData(crmType, loadAll),
         getPipelineStages(crmType),
     ])
@@ -114,7 +114,7 @@ export default async function LeadsPage({ params, searchParams }: LeadsPageProps
                     Удалённые лиды
                 </Link>
             </div>
-            <LeadsClient data={leads} hasMore={hasMore} totalCount={totalCount} columns={columns} />
+            <LeadsClient data={leads} hasMore={hasMore} totalCount={totalCount} columns={columns} userRole={userRole} />
         </div>
     )
 }

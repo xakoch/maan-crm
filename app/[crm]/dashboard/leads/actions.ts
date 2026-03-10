@@ -256,6 +256,74 @@ export async function claimLead(leadId: string) {
     }
 }
 
+export async function bulkDeleteLeads(ids: string[]) {
+    const supabase = await createClient()
+    const { data: { user } } = await supabase.auth.getUser()
+    if (!user) return { success: false, error: "Не авторизован" }
+
+    // Check that user is super_admin
+    const adminSupabase = createSupabaseClient<Database>(
+        process.env.NEXT_PUBLIC_SUPABASE_URL!,
+        process.env.SUPABASE_SERVICE_ROLE_KEY!
+    )
+    const { data: userDetails } = await adminSupabase
+        .from('users')
+        .select('role')
+        .eq('id', user.id)
+        .single()
+
+    if (userDetails?.role !== 'super_admin') {
+        return { success: false, error: "Недостаточно прав" }
+    }
+
+    try {
+        // Fetch leads before deleting
+        const { data: leads } = await adminSupabase
+            .from('leads')
+            .select('*')
+            .in('id', ids)
+
+        if (leads && leads.length > 0) {
+            // Archive all leads
+            await adminSupabase
+                .from('deleted_leads')
+                .insert(leads.map(lead => ({
+                    original_lead_id: lead.id,
+                    lead_data: lead,
+                    deletion_reason: 'Массовое удаление (super_admin)',
+                    deleted_by: user.id,
+                })))
+
+            // Record history
+            await adminSupabase.from('lead_history').insert(
+                leads.map(lead => ({
+                    lead_id: lead.id,
+                    changed_by: user.id,
+                    old_status: lead.status,
+                    new_status: 'deleted',
+                    comment: 'Массовое удаление (super_admin)',
+                }))
+            )
+        }
+
+        // Delete leads
+        const { error } = await adminSupabase
+            .from('leads')
+            .delete()
+            .in('id', ids)
+
+        if (error) {
+            return { success: false, error: error.message }
+        }
+
+        revalidatePath('/lumara/dashboard/leads')
+        revalidatePath('/maan/dashboard/leads')
+        return { success: true, deletedCount: ids.length }
+    } catch (e: any) {
+        return { success: false, error: e.message || "Ошибка удаления" }
+    }
+}
+
 export async function deleteLead(leadId: string, reason: string) {
     const supabase = await createClient()
     const { data: { user } } = await supabase.auth.getUser()

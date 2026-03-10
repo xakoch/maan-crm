@@ -30,10 +30,10 @@ export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode
 
     return (
         <div className={cn(
-            "flex flex-col flex-1 min-w-[300px] h-full rounded-xl bg-muted/30 border border-border/50 backdrop-blur-sm transition-colors",
+            "flex flex-col flex-1 min-w-[300px] rounded-xl bg-muted border border-border/50 transition-colors",
             isOver && "ring-2 ring-primary/50 bg-primary/5"
         )}>
-            <div className={cn("p-4 border-b flex items-center justify-between rounded-t-xl sticky top-0 bg-background/80", color)}>
+            <div className={cn("p-4 border-b flex items-center justify-between rounded-t-xl sticky top-0 z-10 bg-background", color)}>
                 <h3 className="font-semibold">{title}</h3>
                 <span className="text-xs font-mono bg-background/50 px-2 py-1 rounded-md border shadow-sm">
                     {leads.length}
@@ -42,7 +42,7 @@ export function LeadColumn({ id, title, color, leads, onLeadClick, selectionMode
 
             <div
                 ref={setNodeRef}
-                className="flex-1 p-2 space-y-2 overflow-y-auto"
+                className="flex-1 p-2 space-y-2"
             >
                 {leads.map((lead) => (
                     <LeadCard
